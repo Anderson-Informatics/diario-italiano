@@ -1,5 +1,52 @@
 import mongoose from 'mongoose'
 
+let connectionPromise: Promise<typeof mongoose> | null = null
+
+const describeMongoTarget = (mongoUri: string) => {
+  try {
+    const { host, pathname } = new URL(mongoUri)
+    const databaseName = pathname.replace(/^\//, '') || '(default)'
+
+    return `${host}/${databaseName}`
+  }
+  catch {
+    return 'unparseable MongoDB URI'
+  }
+}
+
+const connectToMongo = async (mongoUri: string) => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose
+  }
+
+  if (connectionPromise) {
+    return connectionPromise
+  }
+
+  mongoose.set('bufferCommands', false)
+
+  connectionPromise = mongoose
+    .connect(mongoUri, {
+      serverSelectionTimeoutMS: 10000
+    })
+    .then((connection) => {
+      const databaseName = connection.connection.db?.databaseName || connection.connection.name
+      console.info(`[mongo] Connected to database: ${databaseName}`)
+
+      return connection
+    })
+    .catch((error: unknown) => {
+      connectionPromise = null
+
+      const reason = error instanceof Error ? error.message : 'Unknown MongoDB connection error'
+      throw new Error(
+        `Failed to connect to MongoDB at ${describeMongoTarget(mongoUri)}. ${reason}`
+      )
+    })
+
+  return connectionPromise
+}
+
 export default defineNitroPlugin(async () => {
   const config = useRuntimeConfig()
   const mongoUri = config.mongodbUri?.trim()
@@ -20,8 +67,5 @@ export default defineNitroPlugin(async () => {
     )
   }
 
-  await mongoose.connect(mongoUri)
-
-  const databaseName = mongoose.connection.db?.databaseName || mongoose.connection.name
-  console.info(`[mongo] Connected to database: ${databaseName}`)
+  await connectToMongo(mongoUri)
 })
