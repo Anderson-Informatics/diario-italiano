@@ -152,7 +152,8 @@ const loadEntries = async (page = currentPage.value) => {
       },
     });
     entries.value = data.entries;
-    hasSubmittedEntry.value = hasSubmittedEntry.value || data.entries.length > 0;
+    hasSubmittedEntry.value =
+      hasSubmittedEntry.value || data.entries.length > 0;
     currentPage.value = data.pagination.page;
     totalPages.value = data.pagination.totalPages;
   } catch (error) {
