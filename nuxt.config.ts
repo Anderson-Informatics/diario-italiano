@@ -10,7 +10,11 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     jwtSecret: process.env.JWT_SECRET || 'default-secret-change-in-production',
-    mongodbUri: process.env.MONGO_URI || 'mongodb://localhost:27017/italian_journal'
+    mongodbUri:
+      process.env.MONGO_URI ||
+      (process.env.NODE_ENV === 'production' ? '' : 'mongodb://localhost:27017/italian_journal'),
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini'
   },
   app: {
     head: {

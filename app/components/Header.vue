@@ -26,13 +26,6 @@
           >
             Stats
           </NuxtLink>
-          <NuxtLink 
-            to="/entries" 
-            class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-            :class="route.path.startsWith('/entries') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
-          >
-            Entries
-          </NuxtLink>
           
           <!-- User Menu -->
           <div class="relative" ref="menuRef">
@@ -61,9 +54,6 @@
                 </NuxtLink>
                 <NuxtLink to="/stats" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                   Statistics
-                </NuxtLink>
-                <NuxtLink to="/entries" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                  All Entries
                 </NuxtLink>
                 <hr class="my-1 border-gray-200">
                 <button @click="handleLogout" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50">

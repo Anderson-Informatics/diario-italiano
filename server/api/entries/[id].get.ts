@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
     id: entry._id,
     content: entry.content,
     word_count: entry.word_count,
+    review: entry.review,
     created_at: entry.created_at,
     updated_at: entry.updated_at
   }
