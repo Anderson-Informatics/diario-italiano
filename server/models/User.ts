@@ -1,20 +1,45 @@
 import bcrypt from 'bcryptjs'
 import { Schema, model, Document } from 'mongoose'
 
+interface ISavedTip {
+  tipId: string
+  tip: string
+  type: 'grammar' | 'spelling' | 'vocabulary'
+  reference_link?: string
+  original?: string
+  corrected?: string
+  savedAt: Date
+}
+
 export interface IUser extends Document {
   username: string
   email: string
   password: string
+  savedTips: ISavedTip[]
   createdAt: Date
   updatedAt: Date
   comparePassword(candidate: string): Promise<boolean>
 }
 
+const SavedTipSchema = new Schema<ISavedTip>(
+  {
+    tipId: { type: String, required: true },
+    tip: { type: String, required: true },
+    type: { type: String, enum: ['grammar', 'spelling', 'vocabulary'], required: true },
+    reference_link: { type: String },
+    original: { type: String },
+    corrected: { type: String },
+    savedAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+)
+
 const UserSchema = new Schema<IUser>(
   {
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    savedTips: { type: [SavedTipSchema], default: [] }
   },
   {
     timestamps: true

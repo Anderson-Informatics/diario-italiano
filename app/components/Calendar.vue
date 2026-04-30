@@ -2,15 +2,21 @@
   <div class="bg-white rounded-xl shadow-sm p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-lg font-semibold text-gray-800">📅 {{ monthYear }}</h2>
-      <div class="flex space-x-2">
-        <button 
+      <div class="flex items-center space-x-2">
+        <button
+          @click="goToCurrentMonth"
+          class="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          Today
+        </button>
+        <button
           @click="previousMonth"
           class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Previous month"
         >
           &larr;
         </button>
-        <button 
+        <button
           @click="nextMonth"
           class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Next month"
@@ -19,18 +25,20 @@
         </button>
       </div>
     </div>
-    
+
+    <p v-if="loading" class="text-sm text-gray-500 mb-3">Loading calendar...</p>
+
     <!-- Weekday headers -->
     <div class="grid grid-cols-7 gap-1 mb-2">
-      <div 
-        v-for="day in weekdays" 
+      <div
+        v-for="day in weekdays"
         :key="day"
         class="text-center text-sm font-medium text-gray-500"
       >
         {{ day }}
       </div>
     </div>
-    
+
     <!-- Calendar days -->
     <div class="grid grid-cols-7 gap-1">
       <button
@@ -41,14 +49,15 @@
           'calendar-day',
           day.isCurrentMonth ? 'text-gray-800' : 'text-gray-300',
           day.isToday ? 'today' : '',
-          day.hasEntry ? 'has-entry' : ''
+          day.hasEntry ? 'has-entry' : '',
         ]"
+        :title="day.tooltip"
         :disabled="!day.isCurrentMonth"
       >
         {{ day.dayNumber }}
       </button>
     </div>
-    
+
     <!-- Streak indicator -->
     <div class="mt-4 flex items-center justify-center space-x-2">
       <span class="text-2xl">🔥</span>
@@ -58,101 +67,191 @@
 </template>
 
 <script setup lang="ts">
+import type {
+  CalendarEntryMeta,
+  CalendarMonthChangePayload,
+  CalendarSelectionPayload,
+} from "../types";
+
 interface CalendarDay {
-  date: string
-  dayNumber: number
-  isCurrentMonth: boolean
-  isToday: boolean
-  hasEntry: boolean
+  date: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  hasEntry: boolean;
+  entryId?: string;
+  isPast: boolean;
+  isFuture: boolean;
+  tooltip: string;
 }
 
-const weekdays = ['Lu', 'Ma', 'Me', 'Gi', 'Ve', 'Sa', 'Do']
-const currentMonth = ref(new Date())
-const streak = ref(5)
+interface Props {
+  entryDays?: Record<string, CalendarEntryMeta>;
+  streak?: number;
+  loading?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  entryDays: () => ({}),
+  streak: 0,
+  loading: false,
+});
+
+const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const currentMonth = ref(
+  new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)),
+);
+
+const toDayKey = (date: Date) => date.toISOString().slice(0, 10);
+
+const getTodayKey = () => {
+  const now = new Date();
+  return toDayKey(
+    new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    ),
+  );
+};
+
+const emit = defineEmits<{
+  select: [payload: CalendarSelectionPayload];
+  monthChange: [payload: CalendarMonthChangePayload];
+}>();
 
 const monthYear = computed(() => {
-  return currentMonth.value.toLocaleDateString('en-US', { 
-    month: 'long', 
-    year: 'numeric' 
-  })
-})
+  return currentMonth.value.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+});
 
 const calendarDays = computed(() => {
-  const year = currentMonth.value.getFullYear()
-  const month = currentMonth.value.getMonth()
-  
-  // Get first day of month (0 = Sunday in JS, we need Monday = 1)
-  const firstDay = new Date(year, month, 1)
-  const firstDayOfWeek = (firstDay.getDay() + 6) % 7 // Convert to Monday-based
-  
+  const year = currentMonth.value.getUTCFullYear();
+  const month = currentMonth.value.getUTCMonth();
+
+  const firstDay = new Date(Date.UTC(year, month, 1));
+  const firstDayOfWeek = firstDay.getUTCDay();
+
   // Get last day of previous month
-  const prevMonth = new Date(year, month, 0)
-  const prevMonthDays = prevMonth.getDate()
-  
+  const prevMonth = new Date(Date.UTC(year, month, 0));
+  const prevMonthDays = prevMonth.getUTCDate();
+
   // Get last day of current month
-  const lastDay = new Date(year, month + 1, 0)
-  const lastDate = lastDay.getDate()
-  
-  const days: CalendarDay[] = []
-  const today = new Date()
-  const todayStr = today.toDateString()
-  
+  const lastDay = new Date(Date.UTC(year, month + 1, 0));
+  const lastDate = lastDay.getUTCDate();
+
+  const days: CalendarDay[] = [];
+  const todayKey = getTodayKey();
+
   // Add previous month days
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    const date = new Date(year, month - 1, prevMonthDays - i)
+    const date = new Date(Date.UTC(year, month - 1, prevMonthDays - i));
+    const dayKey = toDayKey(date);
+    const entry = props.entryDays[dayKey];
+
     days.push({
-      date: date.toISOString(),
+      date: dayKey,
       dayNumber: prevMonthDays - i,
       isCurrentMonth: false,
       isToday: false,
-      hasEntry: Math.random() > 0.8 // Placeholder
-    })
+      hasEntry: Boolean(entry),
+      entryId: entry?.entryId,
+      isPast: dayKey < todayKey,
+      isFuture: dayKey > todayKey,
+      tooltip: entry ? `${entry.wordCount} words` : "",
+    });
   }
-  
+
   // Add current month days
   for (let i = 1; i <= lastDate; i++) {
-    const date = new Date(year, month, i)
+    const date = new Date(Date.UTC(year, month, i));
+    const dayKey = toDayKey(date);
+    const entry = props.entryDays[dayKey];
+
     days.push({
-      date: date.toISOString(),
+      date: dayKey,
       dayNumber: i,
       isCurrentMonth: true,
-      isToday: date.toDateString() === todayStr,
-      hasEntry: Math.random() > 0.6 // Placeholder
-    })
+      isToday: dayKey === todayKey,
+      hasEntry: Boolean(entry),
+      entryId: entry?.entryId,
+      isPast: dayKey < todayKey,
+      isFuture: dayKey > todayKey,
+      tooltip: entry ? `${entry.wordCount} words` : "",
+    });
   }
-  
+
   // Add next month days to fill the grid
-  const remainingDays = 42 - days.length
+  const remainingDays = 42 - days.length;
   for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(year, month + 1, i)
+    const date = new Date(Date.UTC(year, month + 1, i));
+    const dayKey = toDayKey(date);
+    const entry = props.entryDays[dayKey];
+
     days.push({
-      date: date.toISOString(),
+      date: dayKey,
       dayNumber: i,
       isCurrentMonth: false,
       isToday: false,
-      hasEntry: false
-    })
+      hasEntry: Boolean(entry),
+      entryId: entry?.entryId,
+      isPast: dayKey < todayKey,
+      isFuture: dayKey > todayKey,
+      tooltip: entry ? `${entry.wordCount} words` : "",
+    });
   }
-  
-  return days
-})
+
+  return days;
+});
 
 const previousMonth = () => {
-  currentMonth.value = new Date(currentMonth.value.setMonth(currentMonth.value.getMonth() - 1))
-}
+  currentMonth.value = new Date(
+    Date.UTC(
+      currentMonth.value.getUTCFullYear(),
+      currentMonth.value.getUTCMonth() - 1,
+      1,
+    ),
+  );
+};
 
 const nextMonth = () => {
-  currentMonth.value = new Date(currentMonth.value.setMonth(currentMonth.value.getMonth() + 1))
-}
+  currentMonth.value = new Date(
+    Date.UTC(
+      currentMonth.value.getUTCFullYear(),
+      currentMonth.value.getUTCMonth() + 1,
+      1,
+    ),
+  );
+};
+
+const goToCurrentMonth = () => {
+  const now = new Date();
+  currentMonth.value = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+};
 
 const selectDay = (day: CalendarDay) => {
   if (day.isCurrentMonth) {
-    // Emit event for day selection
-    emit('select', new Date(day.date))
+    emit("select", {
+      date: day.date,
+      hasEntry: day.hasEntry,
+      entryId: day.entryId,
+      isPast: day.isPast,
+      isToday: day.isToday,
+      isFuture: day.isFuture,
+    });
   }
-}
+};
 
-const emit = defineEmits<{
-  select: [date: Date]
-}>()
+watch(
+  currentMonth,
+  (value) => {
+    emit("monthChange", {
+      year: value.getUTCFullYear(),
+      month: value.getUTCMonth() + 1,
+    });
+  },
+  { immediate: true },
+);
 </script>

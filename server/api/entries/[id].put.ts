@@ -1,4 +1,5 @@
 import { JournalEntry } from '../../models/JournalEntry'
+import { isValidReview } from '../../utils/review'
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId
@@ -19,17 +20,26 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event)
-  const { content } = body
+  const { content, review } = body
 
   if (content !== undefined) {
     entry.content = content
-    await entry.save()
   }
+
+  if (review !== undefined) {
+    if (!isValidReview(review)) {
+      throw createError({ statusCode: 400, message: 'Review payload is invalid' })
+    }
+    entry.review = review
+  }
+
+  await entry.save()
 
   return {
     id: entry._id,
     content: entry.content,
     word_count: entry.word_count,
+    review: entry.review,
     created_at: entry.created_at,
     updated_at: entry.updated_at
   }
