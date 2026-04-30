@@ -41,6 +41,7 @@
     "@vue/test-utils": "^2.4.10",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
+    "happy-dom": "^20.9.0",
     "mongodb-memory-server": "^11.1.0",
     "mongoose": "^9.6.1",
     "playwright": "^1.59.1",
