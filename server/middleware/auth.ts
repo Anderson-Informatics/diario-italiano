@@ -3,14 +3,17 @@ import { User } from '../models/User'
 
 const config = useRuntimeConfig()
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/auth/verify']
+// Public API routes that don't require authentication
+const PUBLIC_API_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/auth/verify']
 
 export default defineEventHandler(async (event) => {
   const path = getRequestURL(event).pathname
   
-  // Check if this is a public route
-  const isPublicRoute = PUBLIC_ROUTES.some(route => path.startsWith(route))
+  // Skip auth for public API routes
+  const isPublicApiRoute = PUBLIC_API_ROUTES.some(route => path.startsWith(route))
+  
+  // Check if this is an API route that needs protection
+  const isProtectedApiRoute = path.startsWith('/api/') && !isPublicApiRoute
   
   const authHeader = getRequestHeader(event, 'authorization')
   
@@ -23,13 +26,15 @@ export default defineEventHandler(async (event) => {
       const user = await User.findById(payload.userId).select('-password')
       event.context.user = user
     } catch {
-      // Invalid token
-      if (!isPublicRoute) {
+      // Invalid token - only reject for protected API routes
+      if (isProtectedApiRoute) {
         throw createError({ statusCode: 401, message: 'Invalid token' })
       }
     }
-  } else if (!isPublicRoute) {
-    // No token provided for protected route
+  } else if (isProtectedApiRoute) {
+    // No token provided for protected API route
     throw createError({ statusCode: 401, message: 'Authentication required' })
   }
+  
+  // For non-API routes (pages) and public API routes, no auth required
 })

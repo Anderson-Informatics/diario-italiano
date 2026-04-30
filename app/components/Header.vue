@@ -13,9 +13,9 @@
         <!-- Navigation -->
         <nav class="flex items-center space-x-4">
           <NuxtLink 
-            to="/" 
+            to="/dashboard" 
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-            :class="route.path === '/' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+            :class="route.path === '/dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
           >
             Dashboard
           </NuxtLink>
@@ -82,6 +82,7 @@
 const route = useRoute()
 const showMenu = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
+const authStore = useAuthStore()
 
 // Close menu when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
@@ -99,7 +100,8 @@ onUnmounted(() => {
 })
 
 const handleLogout = () => {
-  // Placeholder for logout logic
+  authStore.logout()
   showMenu.value = false
+  navigateTo('/')
 }
 </script>
