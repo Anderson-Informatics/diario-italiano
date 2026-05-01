@@ -1,6 +1,8 @@
 <template>
-  <section class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-    <div class="flex items-center justify-between mb-4">
+  <section
+    class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm"
+  >
+    <div class="flex items-center justify-between gap-2 mb-4">
       <h2 class="text-lg font-semibold text-gray-900">TIPA Insights</h2>
       <span class="text-sm text-gray-500">{{ tips.length }} tips</span>
     </div>
@@ -13,9 +15,11 @@
       <li
         v-for="tip in tips"
         :key="tip.tipId"
-        class="border border-gray-100 rounded-lg p-3"
+        class="border border-gray-100 rounded-lg p-3 sm:p-4"
       >
-        <div class="flex items-start justify-between gap-4">
+        <div
+          class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4"
+        >
           <div>
             <p class="text-xs uppercase tracking-wide text-gray-500">
               {{ tip.type }}
@@ -36,7 +40,7 @@
           </div>
 
           <button
-            class="px-3 py-1.5 text-xs rounded-md border transition-colors"
+            class="min-h-10 self-start px-3 py-2 text-xs rounded-md border transition-colors"
             :class="
               tip.isSaved
                 ? 'bg-blue-50 text-blue-800 border-blue-200'

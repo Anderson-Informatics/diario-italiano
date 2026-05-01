@@ -1,20 +1,28 @@
 <template>
-  <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    <article class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+  <section
+    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4"
+  >
+    <article
+      class="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm"
+    >
       <p class="text-xs uppercase tracking-wide text-gray-500">Entries</p>
       <p class="mt-2 text-2xl font-semibold text-gray-900">
         {{ summary.entriesWritten }}
       </p>
     </article>
 
-    <article class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+    <article
+      class="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm"
+    >
       <p class="text-xs uppercase tracking-wide text-gray-500">Avg Errors</p>
       <p class="mt-2 text-2xl font-semibold text-gray-900">
         {{ summary.averageErrorsPerEntry }}
       </p>
     </article>
 
-    <article class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+    <article
+      class="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm"
+    >
       <p class="text-xs uppercase tracking-wide text-gray-500">Improvement</p>
       <p
         class="mt-2 text-2xl font-semibold"
@@ -26,7 +34,9 @@
       </p>
     </article>
 
-    <article class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+    <article
+      class="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm"
+    >
       <p class="text-xs uppercase tracking-wide text-gray-500">
         Current Streak
       </p>

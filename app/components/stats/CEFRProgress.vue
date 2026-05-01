@@ -1,5 +1,7 @@
 <template>
-  <section class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+  <section
+    class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm"
+  >
     <h2 class="text-lg font-semibold text-gray-900 mb-4">CEFR Progress</h2>
 
     <div class="flex items-center justify-between mb-3">

@@ -1,5 +1,7 @@
 <template>
-  <section class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+  <section
+    class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm"
+  >
     <h2 class="text-lg font-semibold text-gray-900 mb-4">
       Focus Recommendations
     </h2>
@@ -9,11 +11,11 @@
       recommendations.
     </p>
 
-    <ul v-else class="space-y-4">
+    <ul v-else class="space-y-3 sm:space-y-4">
       <li
         v-for="item in recommendations"
         :key="item.area"
-        class="border border-gray-100 rounded-lg p-4"
+        class="border border-gray-100 rounded-lg p-3 sm:p-4"
       >
         <div class="flex items-center justify-between gap-3">
           <h3 class="text-sm font-semibold text-gray-900">{{ item.area }}</h3>

@@ -1,24 +1,24 @@
 <template>
-  <div class="bg-white rounded-xl shadow-sm p-6">
-    <div class="flex justify-between items-center mb-4">
+  <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
       <h2 class="text-lg font-semibold text-gray-800">📅 {{ monthYear }}</h2>
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center gap-1.5 sm:gap-2">
         <button
           @click="goToCurrentMonth"
-          class="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          class="min-h-10 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
           Today
         </button>
         <button
           @click="previousMonth"
-          class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          class="min-h-10 min-w-10 p-2 hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Previous month"
         >
           &larr;
         </button>
         <button
           @click="nextMonth"
-          class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          class="min-h-10 min-w-10 p-2 hover:bg-gray-100 rounded-lg transition-colors"
           aria-label="Next month"
         >
           &rarr;
@@ -33,7 +33,7 @@
       <div
         v-for="day in weekdays"
         :key="day"
-        class="text-center text-sm font-medium text-gray-500"
+        class="text-center text-xs sm:text-sm font-medium text-gray-500"
       >
         {{ day }}
       </div>

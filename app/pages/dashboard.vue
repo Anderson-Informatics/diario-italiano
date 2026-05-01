@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4 sm:space-y-6">
     <!-- Journal Editor -->
     <JournalEditor
       v-model="journalContent"
@@ -31,7 +31,10 @@
     />
 
     <!-- Secondary Content Row - Calendar and Focus Areas -->
-    <div v-if="hasSubmittedEntry" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div
+      v-if="hasSubmittedEntry"
+      class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
+    >
       <!-- Calendar -->
       <div class="lg:col-span-2">
         <Calendar

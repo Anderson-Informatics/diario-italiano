@@ -1,10 +1,12 @@
 <template>
-  <section class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+  <section
+    class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm"
+  >
     <h2 class="text-lg font-semibold text-gray-900 mb-4">
       Progress Visualization
     </h2>
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 sm:gap-8">
       <div>
         <h3 class="text-sm font-medium text-gray-700 mb-3">Error Trend</h3>
         <svg viewBox="0 0 320 140" class="w-full h-40 bg-gray-50 rounded-lg">
