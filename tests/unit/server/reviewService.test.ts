@@ -193,4 +193,42 @@ describe('review service', () => {
       message: 'AI service returned an unexpected response structure'
     })
   })
+
+  it('accepts nullable optional fields from the AI response', async () => {
+    const nullableReview = {
+      ...mockReview,
+      corrections: [
+        {
+          ...mockReview.corrections[0],
+          tip: null,
+          reference_link: null,
+          tags: null
+        }
+      ],
+      writing: {
+        ...mockReview.writing,
+        dimensionScores: [
+          {
+            ...mockReview.writing.dimensionScores[0],
+            rationale: null
+          }
+        ],
+        modelRewrite: null,
+        followUpTask: null
+      }
+    }
+
+    const result = await generateReview('Ciao', {
+      apiKey: 'test-key',
+      model: 'gpt-4o-mini',
+      client: createClient(JSON.stringify(nullableReview))
+    })
+
+    expect(result.corrections[0]?.tip).toBeUndefined()
+    expect(result.corrections[0]?.reference_link).toBeUndefined()
+    expect(result.corrections[0]?.tags).toBeUndefined()
+    expect(result.writing?.dimensionScores[0]?.rationale).toBeUndefined()
+    expect(result.writing?.modelRewrite).toBeUndefined()
+    expect(result.writing?.followUpTask).toBeUndefined()
+  })
 })

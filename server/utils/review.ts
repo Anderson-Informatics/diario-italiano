@@ -133,6 +133,10 @@ export function isValidReview(data: unknown): data is Review {
   return true
 }
 
+function isNullish(value: unknown): value is null | undefined {
+  return value === null || value === undefined
+}
+
 function isValidCorrection(correction: unknown): boolean {
   if (!correction || typeof correction !== 'object') return false
 
@@ -140,9 +144,9 @@ function isValidCorrection(correction: unknown): boolean {
   if (typeof value.original !== 'string') return false
   if (typeof value.corrected !== 'string') return false
   if (!VALID_CORRECTION_TYPES.includes(value.type as (typeof VALID_CORRECTION_TYPES)[number])) return false
-  if (value.tip !== undefined && typeof value.tip !== 'string') return false
-  if (value.reference_link !== undefined && typeof value.reference_link !== 'string') return false
-  if (value.tags !== undefined && (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string'))) return false
+  if (!isNullish(value.tip) && typeof value.tip !== 'string') return false
+  if (!isNullish(value.reference_link) && typeof value.reference_link !== 'string') return false
+  if (!isNullish(value.tags) && (!Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string'))) return false
 
   return true
 }
@@ -166,9 +170,9 @@ function isValidWritingFeedback(writing: unknown): boolean {
   if (!Array.isArray(value.strengths) || !value.strengths.every(strength => typeof strength === 'string')) return false
   if (!Array.isArray(value.priorities) || !value.priorities.every(isValidPriority)) return false
   if (!Array.isArray(value.dimensionScores) || !value.dimensionScores.every(isValidDimensionScore)) return false
-  if (value.modelRewrite !== undefined && typeof value.modelRewrite !== 'string') return false
+  if (!isNullish(value.modelRewrite) && typeof value.modelRewrite !== 'string') return false
 
-  if (value.followUpTask !== undefined) {
+  if (!isNullish(value.followUpTask)) {
     if (!value.followUpTask || typeof value.followUpTask !== 'object') return false
 
     const followUpTask = value.followUpTask as Record<string, unknown>
@@ -192,9 +196,55 @@ function isValidDimensionScore(score: unknown): boolean {
   const value = score as Record<string, unknown>
   if (!VALID_WRITING_DIMENSIONS.includes(value.dimension as (typeof VALID_WRITING_DIMENSIONS)[number])) return false
   if (typeof value.score !== 'number' || value.score < 1 || value.score > 5) return false
-  if (value.rationale !== undefined && typeof value.rationale !== 'string') return false
+  if (!isNullish(value.rationale) && typeof value.rationale !== 'string') return false
 
   return true
+}
+
+function normalizeCorrection(correction: Review['corrections'][number]): Review['corrections'][number] {
+  return {
+    original: correction.original,
+    corrected: correction.corrected,
+    type: correction.type,
+    ...(typeof correction.tip === 'string' ? { tip: correction.tip } : {}),
+    ...(typeof correction.reference_link === 'string' ? { reference_link: correction.reference_link } : {}),
+    ...(Array.isArray(correction.tags) ? { tags: correction.tags } : {})
+  }
+}
+
+function normalizeWritingFeedback(writing: Review['writing']): Review['writing'] {
+  if (!writing) {
+    return writing
+  }
+
+  return {
+    phase: writing.phase,
+    strengths: writing.strengths,
+    priorities: writing.priorities,
+    dimensionScores: writing.dimensionScores.map(score => ({
+      dimension: score.dimension,
+      score: score.score,
+      ...(typeof score.rationale === 'string' ? { rationale: score.rationale } : {})
+    })),
+    ...(typeof writing.modelRewrite === 'string' ? { modelRewrite: writing.modelRewrite } : {}),
+    ...(
+      writing.followUpTask &&
+      typeof writing.followUpTask.prompt === 'string' &&
+      typeof writing.followUpTask.instructions === 'string'
+        ? { followUpTask: writing.followUpTask }
+        : {}
+    )
+  }
+}
+
+function normalizeReview(review: Review): Review {
+  return {
+    corrected_text: review.corrected_text,
+    corrections: review.corrections.map(normalizeCorrection),
+    stats: review.stats,
+    cefrLevel: review.cefrLevel,
+    ...(review.writing ? { writing: normalizeWritingFeedback(review.writing) } : {})
+  }
 }
 
 interface GenerateReviewOptions {
@@ -250,5 +300,5 @@ export async function generateReview(text: string, options: GenerateReviewOption
     throw new ReviewError(502, 'AI service returned an unexpected response structure')
   }
 
-  return parsed
+  return normalizeReview(parsed)
 }
