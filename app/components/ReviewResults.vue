@@ -103,6 +103,69 @@
         </ul>
       </div>
 
+      <div v-if="review.writing" class="mt-4 space-y-4">
+        <div class="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p class="text-sm font-medium text-emerald-900">Writing feedback</p>
+              <p class="text-xs text-emerald-700">Phase {{ review.writing.phase }}</p>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white">
+              {{ formatPhaseLabel(review.writing.phase) }}
+            </span>
+          </div>
+
+          <div v-if="review.writing.strengths.length > 0" class="mb-4">
+            <h3 class="text-sm font-medium text-gray-800">Strengths</h3>
+            <ul class="mt-2 space-y-1 text-sm text-gray-700">
+              <li v-for="(strength, index) in review.writing.strengths" :key="`strength-${index}`">
+                {{ strength }}
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="review.writing.priorities.length > 0" class="mb-4">
+            <h3 class="text-sm font-medium text-gray-800">Priority improvements</h3>
+            <ol class="mt-2 space-y-2 text-sm text-gray-700 list-decimal list-inside">
+              <li v-for="(priority, index) in review.writing.priorities" :key="`priority-${index}`">
+                <span class="font-medium">{{ priority.title }}:</span>
+                {{ priority.detail }}
+              </li>
+            </ol>
+          </div>
+
+          <div v-if="review.writing.dimensionScores.length > 0" class="mb-4">
+            <h3 class="text-sm font-medium text-gray-800">Dimension scores</h3>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <div
+                v-for="score in review.writing.dimensionScores"
+                :key="score.dimension"
+                class="rounded-md bg-white px-3 py-2 ring-1 ring-emerald-100"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-sm font-medium text-gray-800">{{ formatDimensionLabel(score.dimension) }}</span>
+                  <span class="text-sm text-emerald-700">{{ score.score }}/5</span>
+                </div>
+                <p v-if="score.rationale" class="mt-1 text-xs text-gray-600">
+                  {{ score.rationale }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="review.writing.modelRewrite" class="mb-4">
+            <h3 class="text-sm font-medium text-gray-800">Model rewrite</h3>
+            <p class="mt-2 whitespace-pre-wrap text-sm text-gray-700">{{ review.writing.modelRewrite }}</p>
+          </div>
+
+          <div v-if="review.writing.followUpTask" class="rounded-md bg-white px-3 py-3 ring-1 ring-emerald-100">
+            <h3 class="text-sm font-medium text-gray-800">Follow-up task</h3>
+            <p class="mt-2 text-sm text-gray-700">{{ review.writing.followUpTask.prompt }}</p>
+            <p class="mt-1 text-xs text-gray-600">{{ review.writing.followUpTask.instructions }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Corrections list -->
       <div v-if="review.corrections.length > 0" class="mt-6 space-y-3">
         <h3 class="font-medium text-gray-800">
@@ -189,5 +252,28 @@ const getBorderColor = (type: string) => {
     vocabulary: "border-blue-500",
   };
   return colors[type] ?? "border-gray-300";
+};
+
+const formatPhaseLabel = (phase: string) => {
+  const labels: Record<string, string> = {
+    'A1-A2': 'Foundations',
+    'B1-B2': 'Progressing',
+    'C1-C2': 'Refinement',
+  };
+
+  return labels[phase] ?? phase;
+};
+
+const formatDimensionLabel = (dimension: string) => {
+  const labels: Record<string, string> = {
+    taskFulfillment: 'Task fulfillment',
+    organization: 'Organization',
+    grammarControl: 'Grammar control',
+    lexicalRange: 'Lexical range',
+    cohesion: 'Cohesion',
+    register: 'Register',
+  };
+
+  return labels[dimension] ?? dimension;
 };
 </script>

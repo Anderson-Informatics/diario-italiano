@@ -1,4 +1,9 @@
+import type { WritingReviewPhase } from '../../app/types/index'
 import { generateReview, ReviewError } from '../utils/review'
+
+function isWritingReviewPhase(value: unknown): value is WritingReviewPhase {
+  return value === 'A1-A2' || value === 'B1-B2' || value === 'C1-C2'
+}
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId
@@ -8,13 +13,15 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event)
   const text: unknown = body?.text
+  const learnerPhase = isWritingReviewPhase(body?.learnerPhase) ? body.learnerPhase : undefined
 
   const config = useRuntimeConfig()
 
   try {
     return await generateReview(typeof text === 'string' ? text : '', {
       apiKey: config.openaiApiKey as string,
-      model: config.openaiModel as string
+      model: config.openaiModel as string,
+      learnerPhase
     })
   } catch (error) {
     if (error instanceof ReviewError) {

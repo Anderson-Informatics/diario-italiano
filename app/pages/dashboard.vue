@@ -9,6 +9,13 @@
       @cancel="cancelEdit"
     />
 
+    <p
+      v-if="activeReviewPreferenceHint"
+      class="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800"
+    >
+      {{ activeReviewPreferenceHint }}
+    </p>
+
     <ReviewResults
       v-if="hasSubmittedEntry && showReview"
       :original-text="lastSubmittedText"
@@ -66,6 +73,7 @@ import type {
   CalendarMonthResponse,
   CalendarSelectionPayload,
   Review,
+  WritingReviewPhase,
 } from "../types/index";
 import { getCurrentYearMonthInTimeZone } from "../utils/timezone";
 
@@ -140,6 +148,43 @@ const focusAreas = ref<FocusArea[]>([
 
 const cefrLevel = ref("B1");
 const confidence = ref(85);
+
+const cefrToWritingPhase = (level?: string): WritingReviewPhase | undefined => {
+  if (level === 'A1' || level === 'A2') {
+    return 'A1-A2';
+  }
+
+  if (level === 'B1' || level === 'B2') {
+    return 'B1-B2';
+  }
+
+  if (level === 'C1' || level === 'C2') {
+    return 'C1-C2';
+  }
+
+  return undefined;
+};
+
+const getLearnerPhaseForReview = (): WritingReviewPhase | undefined => {
+  if (authStore.user?.useTargetReviewPhase && authStore.user.targetReviewPhase) {
+    return authStore.user.targetReviewPhase;
+  }
+
+  if (review.value?.writing?.phase) {
+    return review.value.writing.phase;
+  }
+
+  const reviewedEntry = entries.value.find((entry) => entry.review?.cefrLevel.estimated);
+  return cefrToWritingPhase(reviewedEntry?.review?.cefrLevel.estimated);
+};
+
+const activeReviewPreferenceHint = computed(() => {
+  if (!authStore.user?.useTargetReviewPhase || !authStore.user.targetReviewPhase) {
+    return "";
+  }
+
+  return `AI reviews are using your fixed learner phase: ${authStore.user.targetReviewPhase}. You can change this in Profile & Settings.`;
+});
 
 const loadEntries = async (page = currentPage.value) => {
   entriesLoading.value = true;
@@ -258,7 +303,9 @@ const handleSubmit = async (content: string, entryId?: string) => {
     return;
   }
 
-  const reviewResult = await requestReview(content);
+  const reviewResult = await requestReview(content, {
+    learnerPhase: getLearnerPhaseForReview(),
+  });
 
   if (!reviewResult) {
     return;

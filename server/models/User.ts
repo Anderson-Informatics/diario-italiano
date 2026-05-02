@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs'
 import { Schema, model, Document } from 'mongoose'
 import { DEFAULT_TIMEZONE, isValidTimeZone } from '../utils/timezone'
 
+type WritingReviewPhase = 'A1-A2' | 'B1-B2' | 'C1-C2'
+
 interface ISavedTip {
   tipId: string
   tip: string
@@ -17,6 +19,8 @@ export interface IUser extends Document {
   email: string
   password: string
   timezone: string
+  useTargetReviewPhase: boolean
+  targetReviewPhase: WritingReviewPhase
   savedTips: ISavedTip[]
   createdAt: Date
   updatedAt: Date
@@ -48,6 +52,15 @@ const UserSchema = new Schema<IUser>(
         validator: (value: string) => isValidTimeZone(value),
         message: 'Invalid timezone'
       }
+    },
+    useTargetReviewPhase: {
+      type: Boolean,
+      default: false
+    },
+    targetReviewPhase: {
+      type: String,
+      enum: ['A1-A2', 'B1-B2', 'C1-C2'],
+      default: 'B1-B2'
     },
     savedTips: { type: [SavedTipSchema], default: [] }
   },
