@@ -10,11 +10,25 @@ export default defineEventHandler(async (event) => {
   }
   
   const token = authHeader.slice(7)
+  let payload: { userId: string }
+
   try {
-    const payload = jwt.verify(token, config.jwtSecret) as { userId: string }
-    const user = await User.findById(payload.userId).select('-password')
-    return { user }
+    payload = jwt.verify(token, config.jwtSecret) as { userId: string }
   } catch {
     throw createError({ statusCode: 401, message: 'Invalid token' })
+  }
+
+  const user = await User.findById(payload.userId).select('-password')
+  if (!user) {
+    throw createError({ statusCode: 404, message: 'User not found' })
+  }
+
+  return {
+    user: {
+      id: String(user._id),
+      username: user.username,
+      email: user.email,
+      timezone: user.timezone
+    }
   }
 })

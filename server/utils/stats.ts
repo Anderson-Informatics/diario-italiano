@@ -1,5 +1,12 @@
 import crypto from 'node:crypto'
 import { JournalEntry } from '../models/JournalEntry'
+import {
+  datePartsToDayKey,
+  getDatePartsInTimeZone,
+  getDayKeyInTimeZone,
+  getStartOfDayUTCInTimeZoneFromParts,
+  shiftDatePartsByDays
+} from './timezone'
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
 
@@ -46,43 +53,30 @@ interface LeanEntry {
   }
 }
 
-function startOfDayUTC(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-}
-
-function getRangeStart(range: StatsRange): Date | null {
+function getRangeStart(range: StatsRange, timeZone: string): Date | null {
   if (range === 'all') {
     return null
   }
 
-  const now = new Date()
-  const start = startOfDayUTC(now)
+  const todayParts = getDatePartsInTimeZone(new Date(), timeZone)
+  const daysToSubtract = range === 'week' ? 6 : 29
+  const rangeStartParts = shiftDatePartsByDays(todayParts, -daysToSubtract)
 
-  if (range === 'week') {
-    start.setUTCDate(start.getUTCDate() - 6)
-    return start
-  }
-
-  start.setUTCDate(start.getUTCDate() - 29)
-  return start
+  return getStartOfDayUTCInTimeZoneFromParts(rangeStartParts, timeZone)
 }
 
-function toDayKey(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
-function computeStreak(entries: LeanEntry[]): number {
-  const dayKeys = new Set(entries.map((entry) => toDayKey(startOfDayUTC(new Date(entry.created_at)))))
+function computeStreak(entries: LeanEntry[], timeZone: string): number {
+  const dayKeys = new Set(entries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone)))
   if (dayKeys.size === 0) {
     return 0
   }
 
   let streak = 0
-  const cursor = startOfDayUTC(new Date())
+  let cursorParts = getDatePartsInTimeZone(new Date(), timeZone)
 
-  while (dayKeys.has(toDayKey(cursor))) {
+  while (dayKeys.has(datePartsToDayKey(cursorParts))) {
     streak += 1
-    cursor.setUTCDate(cursor.getUTCDate() - 1)
+    cursorParts = shiftDatePartsByDays(cursorParts, -1)
   }
 
   return streak
@@ -189,8 +183,8 @@ export function buildTipIdForSave(input: { original: string; corrected: string; 
   return createTipId(input)
 }
 
-export async function getDashboardStats(userId: string, range: StatsRange, savedTips: SavedTip[]) {
-  const rangeStart = getRangeStart(range)
+export async function getDashboardStats(userId: string, range: StatsRange, savedTips: SavedTip[], timeZone: string) {
+  const rangeStart = getRangeStart(range, timeZone)
 
   const query: Record<string, unknown> = { userId }
   if (rangeStart) {
@@ -211,7 +205,7 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
 
   const trendByDay = new Map<string, number>()
   for (const entry of reviewedEntries) {
-    const day = toDayKey(new Date(entry.created_at))
+    const day = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
     trendByDay.set(day, (trendByDay.get(day) ?? 0) + (entry.review?.stats.total_errors ?? 0))
   }
 
@@ -243,7 +237,7 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
   const cefrProgression = reviewedEntries
     .filter((entry) => entry.review?.cefrLevel.estimated)
     .map((entry) => ({
-      date: toDayKey(new Date(entry.created_at)),
+      date: getDayKeyInTimeZone(new Date(entry.created_at), timeZone),
       level: entry.review?.cefrLevel.estimated ?? 'A1',
       confidence: entry.review?.cefrLevel.confidence ?? 0
     }))
@@ -259,7 +253,7 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
       entriesWritten: entries.length,
       averageErrorsPerEntry: reviewedEntries.length > 0 ? Number((totalErrors / reviewedEntries.length).toFixed(2)) : 0,
       improvementRate: computeImprovementRate(reviewedEntries),
-      currentStreak: computeStreak(entries)
+      currentStreak: computeStreak(entries, timeZone)
     },
     monthlySummary: {
       mostCommonErrorType: getMostCommonErrorType(reviewedEntries),
@@ -285,7 +279,7 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
       savedAt: tip.savedAt.toISOString()
     })),
     consistency: {
-      datesWithEntries: Array.from(new Set(entries.map((entry) => toDayKey(new Date(entry.created_at))))).sort()
+      datesWithEntries: Array.from(new Set(entries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone)))).sort()
     }
   }
 }

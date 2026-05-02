@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const findOneMock = vi.fn()
 const createMock = vi.fn()
 const findByIdMock = vi.fn()
+const findByIdAndUpdateMock = vi.fn()
 
 const signMock = vi.fn()
 const verifyMock = vi.fn()
@@ -15,7 +16,8 @@ vi.mock('../../../server/models/User', () => ({
   User: {
     findOne: findOneMock,
     create: createMock,
-    findById: findByIdMock
+    findById: findByIdMock,
+    findByIdAndUpdate: findByIdAndUpdateMock
   }
 }))
 
@@ -76,7 +78,8 @@ describe('Auth Handlers', () => {
       expect(createMock).toHaveBeenCalledWith({
         username: 'newuser',
         email: 'new@example.com',
-        password: 'secret123'
+        password: 'secret123',
+        timezone: 'UTC'
       })
     })
   })
@@ -114,6 +117,7 @@ describe('Auth Handlers', () => {
         _id: 'user-123',
         username: 'testuser',
         email: 'test@example.com',
+        timezone: 'Europe/Rome',
         comparePassword: vi.fn().mockResolvedValue(true)
       })
       signMock.mockReturnValue('signed-token')
@@ -127,7 +131,8 @@ describe('Auth Handlers', () => {
         user: {
           id: 'user-123',
           username: 'testuser',
-          email: 'test@example.com'
+          email: 'test@example.com',
+          timezone: 'Europe/Rome'
         }
       })
     })
@@ -146,7 +151,12 @@ describe('Auth Handlers', () => {
     it('returns user data for valid bearer token', async () => {
       verifyMock.mockReturnValue({ userId: 'user-123' })
       findByIdMock.mockReturnValue({
-        select: vi.fn().mockResolvedValue({ id: 'user-123', username: 'testuser', email: 'test@example.com' })
+        select: vi.fn().mockResolvedValue({
+          _id: 'user-123',
+          username: 'testuser',
+          email: 'test@example.com',
+          timezone: 'America/New_York'
+        })
       })
 
       const { default: handler } = await import('../../../server/api/auth/verify.get')
@@ -157,7 +167,52 @@ describe('Auth Handlers', () => {
         user: {
           id: 'user-123',
           username: 'testuser',
-          email: 'test@example.com'
+          email: 'test@example.com',
+          timezone: 'America/New_York'
+        }
+      })
+    })
+  })
+
+  describe('/api/auth/profile', () => {
+    it('rejects unauthorized profile update requests', async () => {
+      const { default: handler } = await import('../../../server/api/auth/profile.put')
+
+      await expect(
+        handler({ context: {}, body: { timezone: 'Europe/Rome' } })
+      ).rejects.toMatchObject({
+        statusCode: 401,
+        message: 'Unauthorized'
+      })
+    })
+
+    it('updates timezone for authenticated user', async () => {
+      findByIdAndUpdateMock.mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          _id: 'user-123',
+          username: 'testuser',
+          email: 'test@example.com',
+          timezone: 'Europe/Rome'
+        })
+      })
+
+      const { default: handler } = await import('../../../server/api/auth/profile.put')
+      const result = await handler({
+        context: { userId: 'user-123' },
+        body: { timezone: 'Europe/Rome' }
+      })
+
+      expect(findByIdAndUpdateMock).toHaveBeenCalledWith(
+        'user-123',
+        { $set: { timezone: 'Europe/Rome' } },
+        { new: true }
+      )
+      expect(result).toEqual({
+        user: {
+          id: 'user-123',
+          username: 'testuser',
+          email: 'test@example.com',
+          timezone: 'Europe/Rome'
         }
       })
     })

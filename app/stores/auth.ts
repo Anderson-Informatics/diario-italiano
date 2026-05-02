@@ -6,6 +6,7 @@ interface User {
   id: string
   username: string
   email: string
+  timezone: string
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -38,6 +39,13 @@ export const useAuthStore = defineStore('auth', {
 
       if (import.meta.client) {
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, token }))
+      }
+    },
+    updateUser(user: User) {
+      this.user = user
+
+      if (import.meta.client) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, token: this.token }))
       }
     },
     logout() {

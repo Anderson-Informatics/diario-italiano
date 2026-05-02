@@ -132,7 +132,7 @@ const handleLogin = async () => {
   serverError.value = ''
   
   try {
-    const response = await $fetch<{ token: string; user: { id: string; username: string; email: string } }>('/api/auth/login', {
+    const response = await $fetch<{ token: string; user: { id: string; username: string; email: string; timezone: string } }>('/api/auth/login', {
       method: 'POST',
       body: {
         usernameOrEmail: form.usernameOrEmail,

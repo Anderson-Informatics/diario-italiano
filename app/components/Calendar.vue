@@ -72,6 +72,14 @@ import type {
   CalendarMonthChangePayload,
   CalendarSelectionPayload,
 } from "../types";
+import {
+  daysInMonth,
+  formatMonthYear,
+  getCurrentYearMonthInTimeZone,
+  getTodayKeyInTimeZone,
+  keyFromParts,
+  weekdayOfFirstDay,
+} from "../utils/timezone";
 
 interface CalendarDay {
   date: string;
@@ -89,29 +97,18 @@ interface Props {
   entryDays?: Record<string, CalendarEntryMeta>;
   streak?: number;
   loading?: boolean;
+  timezone?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   entryDays: () => ({}),
   streak: 0,
   loading: false,
+  timezone: "UTC",
 });
 
 const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-const currentMonth = ref(
-  new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)),
-);
-
-const toDayKey = (date: Date) => date.toISOString().slice(0, 10);
-
-const getTodayKey = () => {
-  const now = new Date();
-  return toDayKey(
-    new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    ),
-  );
-};
+const currentMonth = ref(getCurrentYearMonthInTimeZone(props.timezone));
 
 const emit = defineEmits<{
   select: [payload: CalendarSelectionPayload];
@@ -119,34 +116,29 @@ const emit = defineEmits<{
 }>();
 
 const monthYear = computed(() => {
-  return currentMonth.value.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  return formatMonthYear(
+    currentMonth.value.year,
+    currentMonth.value.month,
+    props.timezone,
+  );
 });
 
 const calendarDays = computed(() => {
-  const year = currentMonth.value.getUTCFullYear();
-  const month = currentMonth.value.getUTCMonth();
+  const year = currentMonth.value.year;
+  const month = currentMonth.value.month;
 
-  const firstDay = new Date(Date.UTC(year, month, 1));
-  const firstDayOfWeek = firstDay.getUTCDay();
-
-  // Get last day of previous month
-  const prevMonth = new Date(Date.UTC(year, month, 0));
-  const prevMonthDays = prevMonth.getUTCDate();
-
-  // Get last day of current month
-  const lastDay = new Date(Date.UTC(year, month + 1, 0));
-  const lastDate = lastDay.getUTCDate();
+  const firstDayOfWeek = weekdayOfFirstDay(year, month);
+  const prevMonthYear = month === 1 ? year - 1 : year;
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevMonthDays = daysInMonth(prevMonthYear, prevMonth);
+  const lastDate = daysInMonth(year, month);
 
   const days: CalendarDay[] = [];
-  const todayKey = getTodayKey();
+  const todayKey = getTodayKeyInTimeZone(props.timezone);
 
   // Add previous month days
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    const date = new Date(Date.UTC(year, month - 1, prevMonthDays - i));
-    const dayKey = toDayKey(date);
+    const dayKey = keyFromParts(prevMonthYear, prevMonth, prevMonthDays - i);
     const entry = props.entryDays[dayKey];
 
     days.push({
@@ -164,8 +156,7 @@ const calendarDays = computed(() => {
 
   // Add current month days
   for (let i = 1; i <= lastDate; i++) {
-    const date = new Date(Date.UTC(year, month, i));
-    const dayKey = toDayKey(date);
+    const dayKey = keyFromParts(year, month, i);
     const entry = props.entryDays[dayKey];
 
     days.push({
@@ -183,9 +174,11 @@ const calendarDays = computed(() => {
 
   // Add next month days to fill the grid
   const remainingDays = 42 - days.length;
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+
   for (let i = 1; i <= remainingDays; i++) {
-    const date = new Date(Date.UTC(year, month + 1, i));
-    const dayKey = toDayKey(date);
+    const dayKey = keyFromParts(nextMonthYear, nextMonth, i);
     const entry = props.entryDays[dayKey];
 
     days.push({
@@ -205,30 +198,31 @@ const calendarDays = computed(() => {
 });
 
 const previousMonth = () => {
-  currentMonth.value = new Date(
-    Date.UTC(
-      currentMonth.value.getUTCFullYear(),
-      currentMonth.value.getUTCMonth() - 1,
-      1,
-    ),
-  );
+  if (currentMonth.value.month === 1) {
+    currentMonth.value = { year: currentMonth.value.year - 1, month: 12 };
+    return;
+  }
+
+  currentMonth.value = {
+    year: currentMonth.value.year,
+    month: currentMonth.value.month - 1,
+  };
 };
 
 const nextMonth = () => {
-  currentMonth.value = new Date(
-    Date.UTC(
-      currentMonth.value.getUTCFullYear(),
-      currentMonth.value.getUTCMonth() + 1,
-      1,
-    ),
-  );
+  if (currentMonth.value.month === 12) {
+    currentMonth.value = { year: currentMonth.value.year + 1, month: 1 };
+    return;
+  }
+
+  currentMonth.value = {
+    year: currentMonth.value.year,
+    month: currentMonth.value.month + 1,
+  };
 };
 
 const goToCurrentMonth = () => {
-  const now = new Date();
-  currentMonth.value = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-  );
+  currentMonth.value = getCurrentYearMonthInTimeZone(props.timezone);
 };
 
 const selectDay = (day: CalendarDay) => {
@@ -248,10 +242,17 @@ watch(
   currentMonth,
   (value) => {
     emit("monthChange", {
-      year: value.getUTCFullYear(),
-      month: value.getUTCMonth() + 1,
+      year: value.year,
+      month: value.month,
     });
   },
   { immediate: true },
+);
+
+watch(
+  () => props.timezone,
+  () => {
+    currentMonth.value = getCurrentYearMonthInTimeZone(props.timezone);
+  },
 );
 </script>

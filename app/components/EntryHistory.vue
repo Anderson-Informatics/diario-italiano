@@ -78,12 +78,14 @@ interface Props {
   loading?: boolean;
   currentPage?: number;
   totalPages?: number;
+  timezone?: string;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   loading: false,
   currentPage: 1,
   totalPages: 1,
+  timezone: "UTC",
 });
 defineEmits<{
   select: [entry: Entry];
@@ -96,6 +98,7 @@ function formatDate(dateString: string): string {
     weekday: "short",
     month: "short",
     day: "numeric",
+    timeZone: props.timezone,
   });
 }
 
