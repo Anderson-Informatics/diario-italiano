@@ -145,7 +145,7 @@ describe('Stats aggregation integration tests', () => {
     ])
 
     const user = await User.findById(testUserId).select('savedTips').lean()
-    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [])
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
 
     expect(stats.hasEnoughData).toBe(true)
     expect(stats.summary.entriesWritten).toBe(3)

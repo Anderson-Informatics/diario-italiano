@@ -1,8 +1,9 @@
 import { User } from '../../models/User'
+import { normalizeTimeZone } from '../../utils/timezone'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { username, email, password } = body
+  const { username, email, password, timezone } = body
   
   // Validation
   if (!username || !email || !password) {
@@ -18,7 +19,12 @@ export default defineEventHandler(async (event) => {
   }
   
   // Create user (password hashed via pre-save hook)
-  const user = await User.create({ username, email, password })
+  const user = await User.create({
+    username,
+    email,
+    password,
+    timezone: normalizeTimeZone(timezone)
+  })
   
   return { success: true, userId: user._id }
 })

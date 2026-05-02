@@ -5,6 +5,7 @@ export interface User {
   _id: string
   username: string
   email: string
+  timezone: string
   createdAt: Date
   updatedAt: Date
 }

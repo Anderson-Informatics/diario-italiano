@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const findMock = vi.fn()
+const findUserByIdMock = vi.fn()
 
 const createErrorMock = vi.fn((input: { statusCode: number; message: string }) =>
   Object.assign(new Error(input.message), input)
@@ -9,6 +10,12 @@ const createErrorMock = vi.fn((input: { statusCode: number; message: string }) =
 vi.mock('../../../server/models/JournalEntry', () => ({
   JournalEntry: {
     find: findMock
+  }
+}))
+
+vi.mock('../../../server/models/User', () => ({
+  User: {
+    findById: findUserByIdMock
   }
 }))
 
@@ -32,6 +39,10 @@ describe('/api/entries/dates handler', () => {
   })
 
   it('rejects invalid month values', async () => {
+    findUserByIdMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ timezone: 'UTC' }) })
+    })
+
     const { default: handler } = await import('../../../server/api/entries/dates.get')
 
     await expect(
@@ -43,6 +54,10 @@ describe('/api/entries/dates handler', () => {
   })
 
   it('returns grouped day metadata with streak', async () => {
+    findUserByIdMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ timezone: 'UTC' }) })
+    })
+
     const monthLeanMock = vi.fn().mockResolvedValue([
       {
         _id: 'entry-late',

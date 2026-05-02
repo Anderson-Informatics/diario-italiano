@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { Schema, model, Document } from 'mongoose'
+import { DEFAULT_TIMEZONE, isValidTimeZone } from '../utils/timezone'
 
 interface ISavedTip {
   tipId: string
@@ -15,6 +16,7 @@ export interface IUser extends Document {
   username: string
   email: string
   password: string
+  timezone: string
   savedTips: ISavedTip[]
   createdAt: Date
   updatedAt: Date
@@ -39,6 +41,14 @@ const UserSchema = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    timezone: {
+      type: String,
+      default: DEFAULT_TIMEZONE,
+      validate: {
+        validator: (value: string) => isValidTimeZone(value),
+        message: 'Invalid timezone'
+      }
+    },
     savedTips: { type: [SavedTipSchema], default: [] }
   },
   {

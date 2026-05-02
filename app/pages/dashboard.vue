@@ -1,6 +1,5 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <!-- Journal Editor -->
     <JournalEditor
       v-model="journalContent"
       :disabled="isSubmitting"
@@ -10,7 +9,6 @@
       @cancel="cancelEdit"
     />
 
-    <!-- Review Results - shown after submit, exits distraction-free mode -->
     <ReviewResults
       v-if="hasSubmittedEntry && showReview"
       :original-text="lastSubmittedText"
@@ -19,28 +17,27 @@
       :error-message="reviewError"
     />
 
-    <!-- Entry History - shown after submit or when loading entries -->
     <EntryHistory
       v-if="hasSubmittedEntry && (showReview || entries.length > 0)"
       :entries="entries"
       :loading="entriesLoading"
       :current-page="currentPage"
       :total-pages="totalPages"
+      :timezone="userTimezone"
       @select="loadEntry"
       @page-change="loadEntries"
     />
 
-    <!-- Secondary Content Row - Calendar and Focus Areas -->
     <div
       v-if="hasSubmittedEntry"
       class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
     >
-      <!-- Calendar -->
       <div class="lg:col-span-2">
         <Calendar
           :entry-days="calendarEntryDays"
           :streak="calendarStreak"
           :loading="calendarLoading"
+          :timezone="userTimezone"
           @select="handleDateSelect"
           @month-change="handleCalendarMonthChange"
         />
@@ -52,7 +49,6 @@
         </p>
       </div>
 
-      <!-- Focus Areas Sidebar -->
       <div>
         <FocusAreas
           :focus-areas="focusAreas"
@@ -71,12 +67,15 @@ import type {
   CalendarSelectionPayload,
   Review,
 } from "../types/index";
+import { getCurrentYearMonthInTimeZone } from "../utils/timezone";
 
 definePageMeta({
   middleware: "auth",
 });
 
-// Journal state
+const authStore = useAuthStore();
+const userTimezone = computed(() => authStore.user?.timezone || "UTC");
+
 const journalContent = ref("");
 const isSubmitting = ref(false);
 const showReview = ref(false);
@@ -84,7 +83,6 @@ const hasSubmittedEntry = ref(false);
 const editingEntryId = ref<string | null>(null);
 const lastSubmittedText = ref("");
 
-// Review state
 const {
   review,
   isLoading: reviewLoading,
@@ -93,7 +91,6 @@ const {
   clearReview,
 } = useReview();
 
-// Entry data
 interface Entry {
   id: string;
   content: string;
@@ -119,16 +116,16 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const PAGE_SIZE = 10;
 
+const initialMonth = getCurrentYearMonthInTimeZone(userTimezone.value);
 const calendarEntryDays = ref<Record<string, CalendarEntryMeta>>({});
 const calendarStreak = ref(0);
 const calendarLoading = ref(false);
 const calendarNotice = ref("");
 const calendarMonth = ref({
-  year: new Date().getUTCFullYear(),
-  month: new Date().getUTCMonth() + 1,
+  year: initialMonth.year,
+  month: initialMonth.month,
 });
 
-// Focus areas data
 interface FocusArea {
   name: string;
   percentage: number;
@@ -144,7 +141,6 @@ const focusAreas = ref<FocusArea[]>([
 const cefrLevel = ref("B1");
 const confidence = ref(85);
 
-// Load entries from API
 const loadEntries = async (page = currentPage.value) => {
   entriesLoading.value = true;
   try {
@@ -199,7 +195,6 @@ const loadCalendarDates = async (year: number, month: number) => {
   }
 };
 
-// Load entry for editing
 const loadEntry = (entry: Entry) => {
   journalContent.value = entry.content;
   editingEntryId.value = entry.id;
@@ -212,7 +207,6 @@ const loadEntry = (entry: Entry) => {
   }
 };
 
-// Cancel edit mode
 const cancelEdit = () => {
   journalContent.value = "";
   editingEntryId.value = null;
@@ -220,7 +214,6 @@ const cancelEdit = () => {
   showReview.value = false;
 };
 
-// Submit entry to API
 const handleSubmit = async (content: string, entryId?: string) => {
   isSubmitting.value = true;
   showReview.value = false;
@@ -328,7 +321,12 @@ const handleCalendarMonthChange = (payload: {
   loadCalendarDates(payload.year, payload.month);
 };
 
-// Load entries on mount
+watch(userTimezone, (timezone) => {
+  const month = getCurrentYearMonthInTimeZone(timezone);
+  calendarMonth.value = month;
+  loadCalendarDates(month.year, month.month);
+});
+
 onMounted(() => {
   loadEntries(1);
 });

@@ -38,7 +38,7 @@ describe('/api/stats/dashboard handler', () => {
 
   it('returns dashboard stats for authenticated users', async () => {
     const selectMock = vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ savedTips: [{ tipId: 'tip-1' }] })
+      lean: vi.fn().mockResolvedValue({ savedTips: [{ tipId: 'tip-1' }], timezone: 'Europe/Rome' })
     })
     findByIdMock.mockReturnValue({ select: selectMock })
 
@@ -54,7 +54,7 @@ describe('/api/stats/dashboard handler', () => {
       query: { range: 'month' }
     })
 
-    expect(getDashboardStatsMock).toHaveBeenCalledWith('user-123', 'month', [{ tipId: 'tip-1' }])
+    expect(getDashboardStatsMock).toHaveBeenCalledWith('user-123', 'month', [{ tipId: 'tip-1' }], 'Europe/Rome')
     expect(result).toEqual({
       range: 'month',
       summary: { entriesWritten: 3 }
@@ -63,7 +63,7 @@ describe('/api/stats/dashboard handler', () => {
 
   it('defaults unknown range to month', async () => {
     const selectMock = vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ savedTips: [] })
+      lean: vi.fn().mockResolvedValue({ savedTips: [], timezone: 'UTC' })
     })
     findByIdMock.mockReturnValue({ select: selectMock })
     getDashboardStatsMock.mockResolvedValue({ ok: true })
@@ -75,6 +75,6 @@ describe('/api/stats/dashboard handler', () => {
       query: { range: 'quarter' }
     })
 
-    expect(getDashboardStatsMock).toHaveBeenCalledWith('user-123', 'month', [])
+    expect(getDashboardStatsMock).toHaveBeenCalledWith('user-123', 'month', [], 'UTC')
   })
 })

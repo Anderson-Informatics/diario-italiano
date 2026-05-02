@@ -21,5 +21,13 @@ export default defineEventHandler(async (event) => {
     { expiresIn: '7d' }
   )
   
-  return { token, user: { id: user._id, username: user.username, email: user.email } }
+  return {
+    token,
+    user: {
+      id: String(user._id),
+      username: user.username,
+      email: user.email,
+      timezone: user.timezone
+    }
+  }
 })

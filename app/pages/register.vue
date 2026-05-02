@@ -175,12 +175,21 @@ const handleRegister = async () => {
   serverError.value = ''
   
   try {
+    const detectedTimeZone = (() => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      } catch {
+        return 'UTC'
+      }
+    })()
+
     await $fetch('/api/auth/register', {
       method: 'POST',
       body: {
         username: form.username,
         email: form.email,
-        password: form.password
+        password: form.password,
+        timezone: detectedTimeZone
       }
     })
     

@@ -1,20 +1,22 @@
 import { JournalEntry } from '../../models/JournalEntry'
+import { User } from '../../models/User'
+import {
+  datePartsToDayKey,
+  DEFAULT_TIMEZONE,
+  getDatePartsInTimeZone,
+  getDayKeyInTimeZone,
+  getMonthUtcRangeInTimeZone,
+  getNowYearMonthInTimeZone,
+  shiftDatePartsByDays
+} from '../../utils/timezone'
 
-function toDayKey(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
-function startOfDayUTC(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-}
-
-function computeStreak(dateKeys: Set<string>): number {
+function computeStreak(dateKeys: Set<string>, timeZone: string): number {
   let streak = 0
-  const cursor = startOfDayUTC(new Date())
+  let cursor = getDatePartsInTimeZone(new Date(), timeZone)
 
-  while (dateKeys.has(toDayKey(cursor))) {
+  while (dateKeys.has(datePartsToDayKey(cursor))) {
     streak += 1
-    cursor.setUTCDate(cursor.getUTCDate() - 1)
+    cursor = shiftDatePartsByDays(cursor, -1)
   }
 
   return streak
@@ -26,21 +28,23 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
   }
 
+  const user = await User.findById(userId).select('timezone').lean()
+  const timeZone = user?.timezone || DEFAULT_TIMEZONE
+
   const query = getQuery(event)
-  const now = new Date()
+  const nowInTimeZone = getNowYearMonthInTimeZone(timeZone)
 
-  const rawYear = Number.parseInt(String(query.year ?? now.getUTCFullYear()), 10)
-  const rawMonth = Number.parseInt(String(query.month ?? now.getUTCMonth() + 1), 10)
+  const rawYear = Number.parseInt(String(query.year ?? nowInTimeZone.year), 10)
+  const rawMonth = Number.parseInt(String(query.month ?? nowInTimeZone.month), 10)
 
-  const year = Number.isNaN(rawYear) ? now.getUTCFullYear() : rawYear
-  const month = Number.isNaN(rawMonth) ? now.getUTCMonth() + 1 : rawMonth
+  const year = Number.isNaN(rawYear) ? nowInTimeZone.year : rawYear
+  const month = Number.isNaN(rawMonth) ? nowInTimeZone.month : rawMonth
 
   if (month < 1 || month > 12) {
     throw createError({ statusCode: 400, message: 'month must be between 1 and 12' })
   }
 
-  const monthStart = new Date(Date.UTC(year, month - 1, 1))
-  const monthEnd = new Date(Date.UTC(year, month, 1))
+  const { start: monthStart, end: monthEnd } = getMonthUtcRangeInTimeZone(year, month, timeZone)
 
   const [monthEntries, allEntries] = await Promise.all([
     JournalEntry.find({
@@ -63,7 +67,7 @@ export default defineEventHandler(async (event) => {
   }>()
 
   for (const entry of monthEntries) {
-    const dayKey = toDayKey(new Date(entry.created_at))
+    const dayKey = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
 
     if (!dayMap.has(dayKey)) {
       dayMap.set(dayKey, {
@@ -76,7 +80,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const allDateKeys = new Set(
-    allEntries.map((entry) => toDayKey(new Date(entry.created_at)))
+    allEntries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone))
   )
 
   return {
@@ -85,6 +89,6 @@ export default defineEventHandler(async (event) => {
       month
     },
     days: Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
-    streak: computeStreak(allDateKeys)
+    streak: computeStreak(allDateKeys, timeZone)
   }
 })
