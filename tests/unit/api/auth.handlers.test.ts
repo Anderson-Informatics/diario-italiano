@@ -118,6 +118,8 @@ describe('Auth Handlers', () => {
         username: 'testuser',
         email: 'test@example.com',
         timezone: 'Europe/Rome',
+        useTargetReviewPhase: true,
+        targetReviewPhase: 'B1-B2',
         comparePassword: vi.fn().mockResolvedValue(true)
       })
       signMock.mockReturnValue('signed-token')
@@ -132,7 +134,9 @@ describe('Auth Handlers', () => {
           id: 'user-123',
           username: 'testuser',
           email: 'test@example.com',
-          timezone: 'Europe/Rome'
+          timezone: 'Europe/Rome',
+          useTargetReviewPhase: true,
+          targetReviewPhase: 'B1-B2'
         }
       })
     })
@@ -155,7 +159,9 @@ describe('Auth Handlers', () => {
           _id: 'user-123',
           username: 'testuser',
           email: 'test@example.com',
-          timezone: 'America/New_York'
+          timezone: 'America/New_York',
+          useTargetReviewPhase: false,
+          targetReviewPhase: 'B1-B2'
         })
       })
 
@@ -168,7 +174,9 @@ describe('Auth Handlers', () => {
           id: 'user-123',
           username: 'testuser',
           email: 'test@example.com',
-          timezone: 'America/New_York'
+          timezone: 'America/New_York',
+          useTargetReviewPhase: false,
+          targetReviewPhase: 'B1-B2'
         }
       })
     })
@@ -192,7 +200,9 @@ describe('Auth Handlers', () => {
           _id: 'user-123',
           username: 'testuser',
           email: 'test@example.com',
-          timezone: 'Europe/Rome'
+          timezone: 'Europe/Rome',
+          useTargetReviewPhase: true,
+          targetReviewPhase: 'C1-C2'
         })
       })
 
@@ -212,7 +222,44 @@ describe('Auth Handlers', () => {
           id: 'user-123',
           username: 'testuser',
           email: 'test@example.com',
-          timezone: 'Europe/Rome'
+          timezone: 'Europe/Rome',
+          useTargetReviewPhase: true,
+          targetReviewPhase: 'C1-C2'
+        }
+      })
+    })
+
+    it('updates review preference for authenticated user', async () => {
+      findByIdAndUpdateMock.mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          _id: 'user-123',
+          username: 'testuser',
+          email: 'test@example.com',
+          timezone: 'Europe/Rome',
+          useTargetReviewPhase: true,
+          targetReviewPhase: 'B1-B2'
+        })
+      })
+
+      const { default: handler } = await import('../../../server/api/auth/profile.put')
+      const result = await handler({
+        context: { userId: 'user-123' },
+        body: { useTargetReviewPhase: true, targetReviewPhase: 'B1-B2' }
+      })
+
+      expect(findByIdAndUpdateMock).toHaveBeenCalledWith(
+        'user-123',
+        { $set: { useTargetReviewPhase: true, targetReviewPhase: 'B1-B2' } },
+        { new: true }
+      )
+      expect(result).toEqual({
+        user: {
+          id: 'user-123',
+          username: 'testuser',
+          email: 'test@example.com',
+          timezone: 'Europe/Rome',
+          useTargetReviewPhase: true,
+          targetReviewPhase: 'B1-B2'
         }
       })
     })

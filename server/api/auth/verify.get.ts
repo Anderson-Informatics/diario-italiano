@@ -28,7 +28,9 @@ export default defineEventHandler(async (event) => {
       id: String(user._id),
       username: user.username,
       email: user.email,
-      timezone: user.timezone
+      timezone: user.timezone,
+      useTargetReviewPhase: user.useTargetReviewPhase,
+      targetReviewPhase: user.targetReviewPhase
     }
   }
 })

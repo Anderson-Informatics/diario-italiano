@@ -6,6 +6,30 @@ interface ICorrectionDoc {
   type: 'grammar' | 'spelling' | 'vocabulary'
   tip?: string
   reference_link?: string
+  tags?: string[]
+}
+
+interface IWritingPriorityDoc {
+  title: string
+  detail: string
+}
+
+interface IWritingDimensionScoreDoc {
+  dimension: 'taskFulfillment' | 'organization' | 'grammarControl' | 'lexicalRange' | 'cohesion' | 'register'
+  score: number
+  rationale?: string
+}
+
+interface IWritingFeedbackDoc {
+  phase: 'A1-A2' | 'B1-B2' | 'C1-C2'
+  strengths: string[]
+  priorities: IWritingPriorityDoc[]
+  dimensionScores: IWritingDimensionScoreDoc[]
+  modelRewrite?: string
+  followUpTask?: {
+    prompt: string
+    instructions: string
+  }
 }
 
 interface IReviewDoc {
@@ -22,6 +46,7 @@ interface IReviewDoc {
     confidence: number
     recommendations: Array<{ area: string; suggestion: string; examples: string[] }>
   }
+  writing?: IWritingFeedbackDoc
 }
 
 export interface IJournalEntry extends Document {
@@ -39,7 +64,44 @@ const CorrectionSchema = new Schema<ICorrectionDoc>(
     corrected: { type: String, required: true },
     type: { type: String, enum: ['grammar', 'spelling', 'vocabulary'], required: true },
     tip: { type: String },
-    reference_link: { type: String }
+    reference_link: { type: String },
+    tags: { type: [String], default: undefined }
+  },
+  { _id: false }
+)
+
+const WritingPrioritySchema = new Schema<IWritingPriorityDoc>(
+  {
+    title: { type: String, required: true },
+    detail: { type: String, required: true }
+  },
+  { _id: false }
+)
+
+const WritingDimensionScoreSchema = new Schema<IWritingDimensionScoreDoc>(
+  {
+    dimension: {
+      type: String,
+      enum: ['taskFulfillment', 'organization', 'grammarControl', 'lexicalRange', 'cohesion', 'register'],
+      required: true
+    },
+    score: { type: Number, min: 1, max: 5, required: true },
+    rationale: { type: String }
+  },
+  { _id: false }
+)
+
+const WritingFeedbackSchema = new Schema<IWritingFeedbackDoc>(
+  {
+    phase: { type: String, enum: ['A1-A2', 'B1-B2', 'C1-C2'], required: true },
+    strengths: { type: [String], default: [] },
+    priorities: { type: [WritingPrioritySchema], default: [] },
+    dimensionScores: { type: [WritingDimensionScoreSchema], default: [] },
+    modelRewrite: { type: String },
+    followUpTask: {
+      prompt: { type: String },
+      instructions: { type: String }
+    }
   },
   { _id: false }
 )
@@ -65,7 +127,8 @@ const ReviewSchema = new Schema<IReviewDoc>(
           _id: false
         }
       ]
-    }
+    },
+    writing: { type: WritingFeedbackSchema, required: false }
   },
   { _id: false }
 )

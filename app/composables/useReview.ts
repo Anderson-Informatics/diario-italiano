@@ -1,11 +1,15 @@
-import type { Review } from '../types/index'
+import type { Review, WritingReviewPhase } from '../types/index'
+
+interface RequestReviewOptions {
+  learnerPhase?: WritingReviewPhase
+}
 
 export function useReview() {
   const review = ref<Review | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  async function requestReview(text: string): Promise<Review | null> {
+  async function requestReview(text: string, options: RequestReviewOptions = {}): Promise<Review | null> {
     isLoading.value = true
     error.value = null
     review.value = null
@@ -13,7 +17,10 @@ export function useReview() {
     try {
       const data = await useAuthenticatedFetch<Review>('/api/review', {
         method: 'POST',
-        body: { text }
+        body: {
+          text,
+          learnerPhase: options.learnerPhase
+        }
       })
       review.value = data
       return data

@@ -34,7 +34,27 @@ describe('useReview', () => {
     expect(isLoading.value).toBe(false)
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/api/review', {
       method: 'POST',
-      body: { text: 'Ho mangiata una mela.' }
+      body: { text: 'Ho mangiata una mela.', learnerPhase: undefined }
+    })
+  })
+
+  it('passes learner phase when provided', async () => {
+    const reviewPayload = {
+      corrected_text: 'Ho mangiato una mela.',
+      corrections: [],
+      stats: { total_errors: 0, grammar: 0, spelling: 0, vocabulary: 0 },
+      cefrLevel: { estimated: 'A2', confidence: 76, recommendations: [] }
+    }
+    authenticatedFetchMock.mockResolvedValue(reviewPayload)
+
+    const { useReview } = await import('../../../app/composables/useReview')
+    const { requestReview } = useReview()
+
+    await requestReview('Ho mangiata una mela.', { learnerPhase: 'B1-B2' })
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/api/review', {
+      method: 'POST',
+      body: { text: 'Ho mangiata una mela.', learnerPhase: 'B1-B2' }
     })
   })
 

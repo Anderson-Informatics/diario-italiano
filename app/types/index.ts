@@ -6,6 +6,8 @@ export interface User {
   username: string
   email: string
   timezone: string
+  useTargetReviewPhase?: boolean
+  targetReviewPhase?: WritingReviewPhase
   createdAt: Date
   updatedAt: Date
 }
@@ -17,6 +19,7 @@ export interface Correction {
   type: 'grammar' | 'spelling' | 'vocabulary'
   tip?: string
   reference_link?: string
+  tags?: string[]
 }
 
 export interface ReviewStats {
@@ -38,11 +41,47 @@ export interface CEFRLevel {
   recommendations: CEFRRecommendations[]
 }
 
+export type WritingReviewPhase = 'A1-A2' | 'B1-B2' | 'C1-C2'
+
+export type WritingReviewDimension =
+  | 'taskFulfillment'
+  | 'organization'
+  | 'grammarControl'
+  | 'lexicalRange'
+  | 'cohesion'
+  | 'register'
+
+export interface WritingPriority {
+  title: string
+  detail: string
+}
+
+export interface WritingDimensionScore {
+  dimension: WritingReviewDimension
+  score: number
+  rationale?: string
+}
+
+export interface WritingFollowUpTask {
+  prompt: string
+  instructions: string
+}
+
+export interface WritingFeedback {
+  phase: WritingReviewPhase
+  strengths: string[]
+  priorities: WritingPriority[]
+  dimensionScores: WritingDimensionScore[]
+  modelRewrite?: string
+  followUpTask?: WritingFollowUpTask
+}
+
 export interface Review {
   corrected_text: string
   corrections: Correction[]
   stats: ReviewStats
   cefrLevel: CEFRLevel
+  writing?: WritingFeedback
 }
 
 export interface JournalEntry {

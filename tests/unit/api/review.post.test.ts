@@ -56,7 +56,27 @@ describe('/api/review handler', () => {
     expect(result).toEqual(review)
     expect(generateReviewMock).toHaveBeenCalledWith('Ciao', {
       apiKey: 'test-key',
-      model: 'gpt-4o-mini'
+      model: 'gpt-4o-mini',
+      learnerPhase: undefined
+    })
+  })
+
+  it('passes learner phase through when provided', async () => {
+    const review = {
+      corrected_text: 'Ciao',
+      corrections: [],
+      stats: { total_errors: 0, grammar: 0, spelling: 0, vocabulary: 0 },
+      cefrLevel: { estimated: 'A1', confidence: 90, recommendations: [] }
+    }
+    generateReviewMock.mockResolvedValue(review)
+
+    const { default: handler } = await import('../../../server/api/review.post')
+    await handler({ context: { userId: '123' }, body: { text: 'Ciao', learnerPhase: 'B1-B2' } })
+
+    expect(generateReviewMock).toHaveBeenCalledWith('Ciao', {
+      apiKey: 'test-key',
+      model: 'gpt-4o-mini',
+      learnerPhase: 'B1-B2'
     })
   })
 

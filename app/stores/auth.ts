@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { WritingReviewPhase } from '../types/index'
 
 const AUTH_STORAGE_KEY = 'italian-journal-auth'
 
@@ -7,6 +8,8 @@ interface User {
   username: string
   email: string
   timezone: string
+  useTargetReviewPhase?: boolean
+  targetReviewPhase?: WritingReviewPhase
 }
 
 export const useAuthStore = defineStore('auth', {
