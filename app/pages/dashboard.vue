@@ -61,6 +61,7 @@
           :focus-areas="focusAreas"
           :cefr-level="review?.cefrLevel.estimated ?? cefrLevel"
           :confidence="review?.cefrLevel.confidence ?? confidence"
+          :focus-period-label="focusPeriodLabel"
         />
       </div>
     </div>
@@ -140,14 +141,67 @@ interface FocusArea {
   color: "blue" | "purple" | "green";
 }
 
-const focusAreas = ref<FocusArea[]>([
-  { name: "Passato Prossimo", percentage: 40, color: "blue" },
-  { name: "Congiuntivo", percentage: 30, color: "purple" },
-  { name: "Vocabulary", percentage: 30, color: "green" },
-]);
+const { data: dashboardStats } = useStats();
 
-const cefrLevel = ref("B1");
-const confidence = ref(85);
+const focusAreaColors: ReadonlyArray<FocusArea["color"]> = [
+  "blue",
+  "purple",
+  "green",
+];
+
+const focusAreas = computed<FocusArea[]>(() => {
+  const recommendations = dashboardStats.value?.focusRecommendations ?? [];
+  const topRecommendations = recommendations.slice(0, 3);
+
+  if (topRecommendations.length === 0) {
+    return [];
+  }
+
+  const totalErrors = topRecommendations.reduce(
+    (sum, item) => sum + item.errorCount,
+    0,
+  );
+
+  if (totalErrors <= 0) {
+    return [];
+  }
+
+  return topRecommendations.map((item, index) => ({
+    name: item.area,
+    percentage: Math.round((item.errorCount / totalErrors) * 100),
+    color: focusAreaColors[index] ?? "green",
+  }));
+});
+
+const cefrLevel = computed(() => {
+  return (
+    review.value?.cefrLevel.estimated ??
+    dashboardStats.value?.monthlySummary.cefrCurrent ??
+    "A1"
+  );
+});
+
+const confidence = computed(() => {
+  if (review.value?.cefrLevel.confidence !== undefined) {
+    return review.value.cefrLevel.confidence;
+  }
+
+  return dashboardStats.value?.cefrProgression.at(-1)?.confidence ?? 0;
+});
+
+const focusPeriodLabel = computed(() => {
+  const range = dashboardStats.value?.range ?? "month";
+
+  if (range === "week") {
+    return "Based on the last 7 days";
+  }
+
+  if (range === "all") {
+    return "Based on all reviewed entries";
+  }
+
+  return "Based on the last 30 days";
+});
 
 const cefrToWritingPhase = (level?: string): WritingReviewPhase | undefined => {
   if (level === 'A1' || level === 'A2') {
