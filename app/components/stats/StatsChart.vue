@@ -8,7 +8,7 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 sm:gap-8">
       <div>
-        <h3 class="text-sm font-medium text-gray-700 mb-3">Error Trend</h3>
+        <h3 class="text-sm font-medium text-gray-700 mb-3">Error Rate Trend (per 100 words)</h3>
         <svg viewBox="0 0 320 140" class="w-full h-40 bg-gray-50 rounded-lg">
           <polyline
             fill="none"
@@ -64,13 +64,13 @@ const normalizedTrend = computed(() => {
     return [];
   }
 
-  const maxValue = Math.max(...props.trend.map((item) => item.total_errors), 1);
+  const maxValue = Math.max(...props.trend.map((item) => item.error_rate), 1);
   const horizontalStep =
     props.trend.length > 1 ? 280 / (props.trend.length - 1) : 0;
 
   return props.trend.map((point, index) => {
     const x = 20 + index * horizontalStep;
-    const y = 120 - (point.total_errors / maxValue) * 100;
+    const y = 120 - (point.error_rate / maxValue) * 100;
 
     return {
       date: point.date,

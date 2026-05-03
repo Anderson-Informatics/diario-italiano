@@ -1,6 +1,13 @@
 import { JournalEntry } from '../../models/JournalEntry'
 import { isValidReview } from '../../utils/review'
 
+function countWords(text: string): number {
+  if (!text || text.trim().length === 0) {
+    return 0
+  }
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length
+}
+
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId
   const id = getRouterParam(event, 'id')
@@ -24,6 +31,7 @@ export default defineEventHandler(async (event) => {
 
   if (content !== undefined) {
     entry.content = content
+    entry.word_count = countWords(content)
   }
 
   if (review !== undefined) {

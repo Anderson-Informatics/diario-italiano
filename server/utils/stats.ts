@@ -26,6 +26,7 @@ interface SavedTip {
 
 interface LeanEntry {
   content: string
+  word_count: number
   created_at: Date
   review?: {
     corrections: Array<{
@@ -40,6 +41,7 @@ interface LeanEntry {
       grammar: number
       spelling: number
       vocabulary: number
+      error_rate?: number
     }
     cefrLevel: {
       estimated: string
@@ -82,6 +84,13 @@ function computeStreak(entries: LeanEntry[], timeZone: string): number {
   return streak
 }
 
+function calculateErrorRate(errors: number, wordCount: number): number {
+  if (wordCount === 0) {
+    return 0
+  }
+  return Math.round((errors / wordCount) * 10000) / 100 // Per 100 words, rounded to 2 decimals
+}
+
 function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   if (reviewedEntries.length < 2) {
     return 0
@@ -91,8 +100,14 @@ function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   const firstHalf = reviewedEntries.slice(0, splitIndex)
   const secondHalf = reviewedEntries.slice(splitIndex)
 
-  const firstAvg = firstHalf.reduce((acc, entry) => acc + (entry.review?.stats.total_errors ?? 0), 0) / firstHalf.length
-  const secondAvg = secondHalf.reduce((acc, entry) => acc + (entry.review?.stats.total_errors ?? 0), 0) / secondHalf.length
+  const firstAvg = firstHalf.reduce((acc, entry) => {
+    const errorRate = calculateErrorRate(entry.review?.stats.total_errors ?? 0, entry.word_count ?? 0)
+    return acc + errorRate
+  }, 0) / firstHalf.length
+  const secondAvg = secondHalf.reduce((acc, entry) => {
+    const errorRate = calculateErrorRate(entry.review?.stats.total_errors ?? 0, entry.word_count ?? 0)
+    return acc + errorRate
+  }, 0) / secondHalf.length
 
   if (firstAvg === 0) {
     return 0
@@ -202,11 +217,16 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
   const totalGrammar = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.grammar ?? 0), 0)
   const totalSpelling = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.spelling ?? 0), 0)
   const totalVocabulary = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.vocabulary ?? 0), 0)
+  const totalWordCount = reviewedEntries.reduce((acc, entry) => acc + (entry.word_count ?? 0), 0)
 
-  const trendByDay = new Map<string, number>()
+  const trendByDay = new Map<string, { errors: number; wordCount: number }>()
   for (const entry of reviewedEntries) {
     const day = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
-    trendByDay.set(day, (trendByDay.get(day) ?? 0) + (entry.review?.stats.total_errors ?? 0))
+    const current = trendByDay.get(day) ?? { errors: 0, wordCount: 0 }
+    trendByDay.set(day, {
+      errors: current.errors + (entry.review?.stats.total_errors ?? 0),
+      wordCount: current.wordCount + (entry.word_count ?? 0)
+    })
   }
 
   const tips = reviewedEntries.flatMap((entry) => {
@@ -251,7 +271,7 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
     hasEnoughData: reviewedEntries.length >= 3,
     summary: {
       entriesWritten: entries.length,
-      averageErrorsPerEntry: reviewedEntries.length > 0 ? Number((totalErrors / reviewedEntries.length).toFixed(2)) : 0,
+      averageErrorRate: totalWordCount > 0 ? Math.round(calculateErrorRate(totalErrors, totalWordCount) * 100) / 100 : 0,
       improvementRate: computeImprovementRate(reviewedEntries),
       currentStreak: computeStreak(entries, timeZone)
     },
@@ -265,11 +285,16 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
       grammar: totalGrammar,
       spelling: totalSpelling,
       vocabulary: totalVocabulary,
-      total: totalErrors
+      total: totalErrors,
+      grammarRate: calculateErrorRate(totalGrammar, totalWordCount),
+      spellingRate: calculateErrorRate(totalSpelling, totalWordCount),
+      vocabularyRate: calculateErrorRate(totalVocabulary, totalWordCount),
+      averageRate: calculateErrorRate(totalErrors, totalWordCount)
     },
-    errorTrend: Array.from(trendByDay.entries()).map(([date, total_errors]) => ({
+    errorTrend: Array.from(trendByDay.entries()).map(([date, { errors, wordCount }]) => ({
       date,
-      total_errors
+      total_errors: errors,
+      error_rate: calculateErrorRate(errors, wordCount)
     })),
     cefrProgression,
     focusRecommendations: buildRecommendations(reviewedEntries),

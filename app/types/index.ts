@@ -27,6 +27,7 @@ export interface ReviewStats {
   grammar: number
   spelling: number
   vocabulary: number
+  error_rate?: number
 }
 
 export interface CEFRRecommendations {
@@ -176,6 +177,7 @@ export interface TipInsight {
 export interface ErrorTrendPoint {
   date: string
   total_errors: number
+  error_rate: number
 }
 
 export interface ErrorDistribution {
@@ -183,6 +185,10 @@ export interface ErrorDistribution {
   spelling: number
   vocabulary: number
   total: number
+  grammarRate?: number
+  spellingRate?: number
+  vocabularyRate?: number
+  averageRate?: number
 }
 
 export interface CEFRProgressPoint {
@@ -205,7 +211,8 @@ export interface StatsDashboardResponse {
   hasEnoughData: boolean
   summary: {
     entriesWritten: number
-    averageErrorsPerEntry: number
+    averageErrorsPerEntry?: number
+    averageErrorRate: number
     improvementRate: number
     currentStreak: number
   }

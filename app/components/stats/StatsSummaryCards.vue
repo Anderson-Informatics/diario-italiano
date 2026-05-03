@@ -14,9 +14,9 @@
     <article
       class="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm"
     >
-      <p class="text-xs uppercase tracking-wide text-gray-500">Avg Errors</p>
+      <p class="text-xs uppercase tracking-wide text-gray-500">Error Rate</p>
       <p class="mt-2 text-2xl font-semibold text-gray-900">
-        {{ summary.averageErrorsPerEntry }}
+        {{ summary.averageErrorRate }}<span class="text-sm font-normal text-gray-500">/100w</span>
       </p>
     </article>
 
@@ -50,7 +50,7 @@
 <script setup lang="ts">
 interface Summary {
   entriesWritten: number;
-  averageErrorsPerEntry: number;
+  averageErrorRate: number;
   improvementRate: number;
   currentStreak: number;
 }
