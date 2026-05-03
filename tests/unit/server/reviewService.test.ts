@@ -79,8 +79,46 @@ describe('review service', () => {
     })
 
     expect(result.corrected_text).toBe('Ho mangiato una mela.')
+    expect(result.reviewSchemaVersion).toBe(1)
     expect(result.writing?.phase).toBe('A1-A2')
     expect(client.chat.completions.create).toHaveBeenCalledOnce()
+
+    const requestPayload = client.chat.completions.create.mock.calls[0]?.[0]
+    const systemMessage = requestPayload?.messages?.[0]?.content
+    expect(systemMessage).toContain('Rollout phase 1 rule: use punctuation as the only extended category for now.')
+  })
+
+  it('normalizes extended categories while keeping legacy counters', async () => {
+    const extendedReview = {
+      ...mockReview,
+      corrections: [
+        ...mockReview.corrections,
+        {
+          original: 'ciao,come stai?',
+          corrected: 'ciao, come stai?',
+          type: 'punctuation' as const,
+          tip: 'Add a space after commas.'
+        }
+      ],
+      stats: {
+        total_errors: 1,
+        grammar: 1,
+        spelling: 0,
+        vocabulary: 0
+      }
+    }
+
+    const result = await generateReview('ciao,come stai?', {
+      apiKey: 'test-key',
+      model: 'gpt-4o-mini',
+      client: createClient(JSON.stringify(extendedReview))
+    })
+
+    expect(result.reviewSchemaVersion).toBe(2)
+    expect(result.stats.grammar).toBe(1)
+    expect(result.stats.vocabulary).toBe(0)
+    expect(result.stats.punctuation).toBe(1)
+    expect(result.stats.total_errors).toBe(2)
   })
 
   it('accepts legacy responses without writing feedback', async () => {

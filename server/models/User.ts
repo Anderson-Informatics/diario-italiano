@@ -7,7 +7,7 @@ type WritingReviewPhase = 'A1-A2' | 'B1-B2' | 'C1-C2'
 interface ISavedTip {
   tipId: string
   tip: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: 'grammar' | 'spelling' | 'vocabulary' | 'punctuation' | 'idiomatic' | 'register'
   reference_link?: string
   original?: string
   corrected?: string
@@ -31,7 +31,7 @@ const SavedTipSchema = new Schema<ISavedTip>(
   {
     tipId: { type: String, required: true },
     tip: { type: String, required: true },
-    type: { type: String, enum: ['grammar', 'spelling', 'vocabulary'], required: true },
+    type: { type: String, enum: ['grammar', 'spelling', 'vocabulary', 'punctuation', 'idiomatic', 'register'], required: true },
     reference_link: { type: String },
     original: { type: String },
     corrected: { type: String },

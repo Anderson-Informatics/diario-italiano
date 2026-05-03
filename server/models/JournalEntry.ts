@@ -3,7 +3,7 @@ import { Schema, model, Document, type ObjectId } from 'mongoose'
 interface ICorrectionDoc {
   original: string
   corrected: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: 'grammar' | 'spelling' | 'vocabulary' | 'punctuation' | 'idiomatic' | 'register'
   tip?: string
   reference_link?: string
   tags?: string[]
@@ -33,6 +33,7 @@ interface IWritingFeedbackDoc {
 }
 
 interface IReviewDoc {
+  reviewSchemaVersion?: 1 | 2
   corrected_text: string
   corrections: ICorrectionDoc[]
   stats: {
@@ -40,6 +41,9 @@ interface IReviewDoc {
     grammar: number
     spelling: number
     vocabulary: number
+    punctuation?: number
+    idiomatic?: number
+    register?: number
   }
   cefrLevel: {
     estimated: string
@@ -62,7 +66,7 @@ const CorrectionSchema = new Schema<ICorrectionDoc>(
   {
     original: { type: String, required: true },
     corrected: { type: String, required: true },
-    type: { type: String, enum: ['grammar', 'spelling', 'vocabulary'], required: true },
+    type: { type: String, enum: ['grammar', 'spelling', 'vocabulary', 'punctuation', 'idiomatic', 'register'], required: true },
     tip: { type: String },
     reference_link: { type: String },
     tags: { type: [String], default: undefined }
@@ -108,13 +112,17 @@ const WritingFeedbackSchema = new Schema<IWritingFeedbackDoc>(
 
 const ReviewSchema = new Schema<IReviewDoc>(
   {
+    reviewSchemaVersion: { type: Number, enum: [1, 2], required: false },
     corrected_text: { type: String, required: true },
     corrections: { type: [CorrectionSchema], default: [] },
     stats: {
       total_errors: { type: Number, default: 0 },
       grammar: { type: Number, default: 0 },
       spelling: { type: Number, default: 0 },
-      vocabulary: { type: Number, default: 0 }
+      vocabulary: { type: Number, default: 0 },
+      punctuation: { type: Number, default: 0 },
+      idiomatic: { type: Number, default: 0 },
+      register: { type: Number, default: 0 }
     },
     cefrLevel: {
       estimated: { type: String },

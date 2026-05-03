@@ -1,8 +1,9 @@
 import OpenAI from 'openai'
-import type { Review, WritingReviewPhase } from '../../app/types/index'
+import type { CorrectionType, Review, WritingReviewPhase } from '../../app/types/index'
 
 export const MAX_REVIEW_TEXT_LENGTH = 5000
-const VALID_CORRECTION_TYPES = ['grammar', 'spelling', 'vocabulary'] as const
+const VALID_CORRECTION_TYPES = ['grammar', 'spelling', 'vocabulary', 'punctuation', 'idiomatic', 'register'] as const
+const EXTENDED_CORRECTION_TYPES = ['punctuation', 'idiomatic', 'register'] as const
 const VALID_CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
 const VALID_WRITING_PHASES = ['A1-A2', 'B1-B2', 'C1-C2'] as const
 const VALID_WRITING_DIMENSIONS = [
@@ -33,7 +34,7 @@ Your response MUST be valid JSON matching this exact schema:
     {
       "original": "string — the original incorrect text fragment",
       "corrected": "string — the corrected version",
-      "type": "grammar" | "spelling" | "vocabulary",
+      "type": "grammar" | "spelling" | "vocabulary" | "punctuation" | "idiomatic" | "register",
       "tip": "string — a brief explanation in English of why this is wrong and how to remember the rule",
       "reference_link": "string — a URL to an authoritative Italian grammar resource explaining this rule (only for grammar type errors; omit or null for others)",
       "tags": ["string — optional short writing tags such as article usage, tense consistency, cohesion"]
@@ -43,7 +44,10 @@ Your response MUST be valid JSON matching this exact schema:
     "total_errors": number,
     "grammar": number,
     "spelling": number,
-    "vocabulary": number
+    "vocabulary": number,
+    "punctuation": number,
+    "idiomatic": number,
+    "register": number
   },
   "cefrLevel": {
     "estimated": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
@@ -84,6 +88,10 @@ Rules:
 - If the text has no errors, return an empty corrections array and stats all zero.
 - Only flag genuine Italian language errors, not stylistic preferences.
 - reference_link must be a real, stable URL (e.g. from treccani.it, grammaticaitaliana.it, or italian.stackexchange.com). Only include for grammar errors.
+- Always include legacy stats keys (grammar, spelling, vocabulary) for backward compatibility.
+- Rollout phase 1 rule: use punctuation as the only extended category for now. Avoid using idiomatic or register in type; map those cases to grammar or vocabulary and explain nuance in tip/tags if needed.
+- If punctuation corrections exist, include punctuation in stats. If there are no punctuation corrections, set punctuation to 0.
+- Set idiomatic and register to 0 during this rollout phase.
 - Keep tips concise (1–2 sentences).
 - Provide 1–3 recommendations in cefrLevel.recommendations.
 - Always include the writing object.
@@ -119,6 +127,9 @@ export function isValidReview(data: unknown): data is Review {
   if (typeof stats.grammar !== 'number') return false
   if (typeof stats.spelling !== 'number') return false
   if (typeof stats.vocabulary !== 'number') return false
+  if (!isNullish(stats.punctuation) && typeof stats.punctuation !== 'number') return false
+  if (!isNullish(stats.idiomatic) && typeof stats.idiomatic !== 'number') return false
+  if (!isNullish(stats.register) && typeof stats.register !== 'number') return false
 
   const cefrLevel = review.cefrLevel as Record<string, unknown>
   if (!VALID_CEFR_LEVELS.includes(cefrLevel.estimated as (typeof VALID_CEFR_LEVELS)[number])) return false
@@ -212,6 +223,58 @@ function normalizeCorrection(correction: Review['corrections'][number]): Review[
   }
 }
 
+function getDerivedStatsFromCorrections(corrections: Review['corrections']) {
+  const totals: Record<CorrectionType, number> = {
+    grammar: 0,
+    spelling: 0,
+    vocabulary: 0,
+    punctuation: 0,
+    idiomatic: 0,
+    register: 0
+  }
+
+  for (const correction of corrections) {
+    totals[correction.type] += 1
+  }
+
+  return totals
+}
+
+function normalizeStats(review: Review): Review['stats'] {
+  const derived = getDerivedStatsFromCorrections(review.corrections)
+  const stats = review.stats
+
+  const grammar = Math.max(stats.grammar, derived.grammar)
+  const spelling = Math.max(stats.spelling, derived.spelling)
+  const vocabulary = Math.max(stats.vocabulary, derived.vocabulary)
+  const punctuation = Math.max(stats.punctuation ?? 0, derived.punctuation)
+  const idiomatic = Math.max(stats.idiomatic ?? 0, derived.idiomatic)
+  const register = Math.max(stats.register ?? 0, derived.register)
+
+  const totalFromBuckets = grammar + spelling + vocabulary + punctuation + idiomatic + register
+  const total_errors = Math.max(stats.total_errors, totalFromBuckets)
+
+  return {
+    total_errors,
+    grammar,
+    spelling,
+    vocabulary,
+    ...(punctuation > 0 || stats.punctuation !== undefined ? { punctuation } : {}),
+    ...(idiomatic > 0 || stats.idiomatic !== undefined ? { idiomatic } : {}),
+    ...(register > 0 || stats.register !== undefined ? { register } : {}),
+    ...(typeof stats.error_rate === 'number' ? { error_rate: stats.error_rate } : {})
+  }
+}
+
+function hasExtendedData(review: Review): boolean {
+  const stats = review.stats
+  const hasExtendedCorrection = review.corrections.some((correction) =>
+    EXTENDED_CORRECTION_TYPES.includes(correction.type as (typeof EXTENDED_CORRECTION_TYPES)[number])
+  )
+
+  return hasExtendedCorrection || stats.punctuation !== undefined || stats.idiomatic !== undefined || stats.register !== undefined
+}
+
 function normalizeWritingFeedback(writing: Review['writing']): Review['writing'] {
   if (!writing) {
     return writing
@@ -237,11 +300,14 @@ function normalizeWritingFeedback(writing: Review['writing']): Review['writing']
   }
 }
 
-function normalizeReview(review: Review): Review {
+export function normalizeReviewForCompatibility(review: Review): Review {
+  const normalizedStats = normalizeStats(review)
+
   return {
+    ...(review.reviewSchemaVersion ? { reviewSchemaVersion: review.reviewSchemaVersion } : { reviewSchemaVersion: hasExtendedData(review) ? 2 : 1 }),
     corrected_text: review.corrected_text,
     corrections: review.corrections.map(normalizeCorrection),
-    stats: review.stats,
+    stats: normalizedStats,
     cefrLevel: review.cefrLevel,
     ...(review.writing ? { writing: normalizeWritingFeedback(review.writing) } : {})
   }
@@ -300,5 +366,5 @@ export async function generateReview(text: string, options: GenerateReviewOption
     throw new ReviewError(502, 'AI service returned an unexpected response structure')
   }
 
-  return normalizeReview(parsed)
+  return normalizeReviewForCompatibility(parsed)
 }

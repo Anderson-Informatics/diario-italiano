@@ -13,10 +13,18 @@ export interface User {
 }
 
 // Journal Entry types
+export type CorrectionType =
+  | 'grammar'
+  | 'spelling'
+  | 'vocabulary'
+  | 'punctuation'
+  | 'idiomatic'
+  | 'register'
+
 export interface Correction {
   original: string
   corrected: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: CorrectionType
   tip?: string
   reference_link?: string
   tags?: string[]
@@ -27,6 +35,9 @@ export interface ReviewStats {
   grammar: number
   spelling: number
   vocabulary: number
+  punctuation?: number
+  idiomatic?: number
+  register?: number
   error_rate?: number
 }
 
@@ -78,6 +89,7 @@ export interface WritingFeedback {
 }
 
 export interface Review {
+  reviewSchemaVersion?: 1 | 2
   corrected_text: string
   corrections: Correction[]
   stats: ReviewStats
@@ -157,7 +169,7 @@ export interface DashboardStats {
 export interface SavedTip {
   tipId: string
   tip: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: CorrectionType
   reference_link?: string
   original?: string
   corrected?: string
@@ -167,7 +179,7 @@ export interface SavedTip {
 export interface TipInsight {
   tipId: string
   tip: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: CorrectionType
   reference_link?: string
   original: string
   corrected: string
@@ -184,10 +196,16 @@ export interface ErrorDistribution {
   grammar: number
   spelling: number
   vocabulary: number
+  punctuation?: number
+  idiomatic?: number
+  register?: number
   total: number
   grammarRate?: number
   spellingRate?: number
   vocabularyRate?: number
+  punctuationRate?: number
+  idiomaticRate?: number
+  registerRate?: number
   averageRate?: number
 }
 
@@ -217,7 +235,7 @@ export interface StatsDashboardResponse {
     currentStreak: number
   }
   monthlySummary: {
-    mostCommonErrorType: 'grammar' | 'spelling' | 'vocabulary' | 'none'
+    mostCommonErrorType: CorrectionType | 'none'
     cefrCurrent: string
     cefrPrevious: string
     cefrDelta: number

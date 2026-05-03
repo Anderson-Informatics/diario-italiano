@@ -141,6 +141,33 @@ describe('Stats aggregation integration tests', () => {
             recommendations: []
           }
         }
+      },
+      {
+        userId: testUserId,
+        content: 'Ciao,come stai?',
+        review: {
+          corrected_text: 'Ciao, come stai?',
+          corrections: [
+            {
+              original: 'Ciao,come',
+              corrected: 'Ciao, come',
+              type: 'punctuation',
+              tip: 'Add a space after commas.'
+            }
+          ],
+          // Legacy stats payload intentionally omits punctuation to verify compatibility normalization.
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A2',
+            confidence: 79,
+            recommendations: []
+          }
+        }
       }
     ])
 
@@ -148,9 +175,11 @@ describe('Stats aggregation integration tests', () => {
     const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
 
     expect(stats.hasEnoughData).toBe(true)
-    expect(stats.summary.entriesWritten).toBe(3)
+    expect(stats.summary.entriesWritten).toBe(4)
     expect(stats.errorDistribution.grammar).toBe(2)
     expect(stats.errorDistribution.vocabulary).toBe(1)
+    expect(stats.errorDistribution.punctuation).toBe(1)
+    expect(stats.errorDistribution.total).toBe(4)
     expect(stats.tips.some((tip) => tip.tip === tipText && tip.isSaved)).toBe(true)
     expect(stats.savedTips).toHaveLength(1)
   })
