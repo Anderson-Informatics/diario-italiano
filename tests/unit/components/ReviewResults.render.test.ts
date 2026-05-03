@@ -65,7 +65,7 @@ describe('ReviewResults rendering', () => {
       props: { isLoading: true }
     })
 
-    expect(wrapper.find('.animate-pulse').exists()).toBe(true)
+    expect(wrapper.find('.proof-loader').exists()).toBe(true)
   })
 
   it('renders error state', () => {
