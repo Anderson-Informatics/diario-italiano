@@ -374,12 +374,12 @@ const formatDimensionLabel = (dimension: string) => {
 
 .proof-loader__error-strike {
   position: absolute;
-  left: -8%;
-  top: 48%;
-  width: 116%;
+  left: 8px;
+  right: 8px;
+  top: 50%;
   height: 2px;
-  background: #b91c1c;
-  transform: rotate(-2deg);
+  background: #dc2626;
+  transform: translateY(-50%);
 }
 
 .proof-loader__line--fixed {
