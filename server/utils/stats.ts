@@ -121,15 +121,22 @@ function getRangeStart(range: StatsRange, timeZone: string): Date | null {
 }
 
 function computeStreak(entries: LeanEntry[], timeZone: string): number {
-  const dayKeys = new Set(entries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone)))
-  if (dayKeys.size === 0) {
+  const completedDayKeys = new Set(
+    entries
+      .filter((entry) => Boolean(entry.review))
+      .map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone))
+  )
+
+  if (completedDayKeys.size === 0) {
     return 0
   }
 
   let streak = 0
-  let cursorParts = getDatePartsInTimeZone(new Date(), timeZone)
+  const todayParts = getDatePartsInTimeZone(new Date(), timeZone)
+  const todayKey = datePartsToDayKey(todayParts)
+  let cursorParts = completedDayKeys.has(todayKey) ? todayParts : shiftDatePartsByDays(todayParts, -1)
 
-  while (dayKeys.has(datePartsToDayKey(cursorParts))) {
+  while (completedDayKeys.has(datePartsToDayKey(cursorParts))) {
     streak += 1
     cursorParts = shiftDatePartsByDays(cursorParts, -1)
   }

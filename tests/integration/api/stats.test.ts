@@ -9,6 +9,17 @@ let mongoServer: MongoMemoryServer
 let testUserId: mongoose.Types.ObjectId
 
 describe('Stats aggregation integration tests', () => {
+  function getUtcNoonWithDayOffset(offsetDays: number): Date {
+    const now = new Date()
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0))
+    date.setUTCDate(date.getUTCDate() + offsetDays)
+    return date
+  }
+
+  async function setEntryCreatedAt(entryId: mongoose.Types.ObjectId, createdAt: Date) {
+    await JournalEntry.collection.updateOne({ _id: entryId }, { $set: { created_at: createdAt } })
+  }
+
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create({
       instance: { storageEngine: 'wiredTiger' }
@@ -182,5 +193,148 @@ describe('Stats aggregation integration tests', () => {
     expect(stats.errorDistribution.total).toBe(4)
     expect(stats.tips.some((tip) => tip.tip === tipText && tip.isSaved)).toBe(true)
     expect(stats.savedTips).toHaveLength(1)
+  })
+
+  it('counts today in current streak only when today entry is complete', async () => {
+    const [todayEntry, yesterdayEntry] = await JournalEntry.create([
+      {
+        userId: testUserId,
+        content: 'Today complete',
+        review: {
+          corrected_text: 'Today complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Yesterday complete',
+        review: {
+          corrected_text: 'Yesterday complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      }
+    ])
+
+    await setEntryCreatedAt(todayEntry._id, getUtcNoonWithDayOffset(0))
+    await setEntryCreatedAt(yesterdayEntry._id, getUtcNoonWithDayOffset(-1))
+
+    const user = await User.findById(testUserId).select('savedTips').lean()
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
+
+    expect(stats.summary.currentStreak).toBe(2)
+  })
+
+  it('starts streak from yesterday when today entry is incomplete', async () => {
+    const [todayIncompleteEntry, yesterdayCompleteEntry, twoDaysAgoCompleteEntry] = await JournalEntry.create([
+      {
+        userId: testUserId,
+        content: 'Today incomplete'
+      },
+      {
+        userId: testUserId,
+        content: 'Yesterday complete',
+        review: {
+          corrected_text: 'Yesterday complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Two days ago complete',
+        review: {
+          corrected_text: 'Two days ago complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      }
+    ])
+
+    await setEntryCreatedAt(todayIncompleteEntry._id, getUtcNoonWithDayOffset(0))
+    await setEntryCreatedAt(yesterdayCompleteEntry._id, getUtcNoonWithDayOffset(-1))
+    await setEntryCreatedAt(twoDaysAgoCompleteEntry._id, getUtcNoonWithDayOffset(-2))
+
+    const user = await User.findById(testUserId).select('savedTips').lean()
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
+
+    expect(stats.summary.currentStreak).toBe(2)
+  })
+
+  it('returns zero when yesterday has no complete entry', async () => {
+    const [todayIncompleteEntry, twoDaysAgoCompleteEntry] = await JournalEntry.create([
+      {
+        userId: testUserId,
+        content: 'Today incomplete'
+      },
+      {
+        userId: testUserId,
+        content: 'Two days ago complete',
+        review: {
+          corrected_text: 'Two days ago complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      }
+    ])
+
+    await setEntryCreatedAt(todayIncompleteEntry._id, getUtcNoonWithDayOffset(0))
+    await setEntryCreatedAt(twoDaysAgoCompleteEntry._id, getUtcNoonWithDayOffset(-2))
+
+    const user = await User.findById(testUserId).select('savedTips').lean()
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
+
+    expect(stats.summary.currentStreak).toBe(0)
   })
 })
