@@ -1,10 +1,36 @@
 <template>
   <div class="bg-white rounded-xl shadow-sm p-6">
-    <!-- Loading skeleton -->
-    <div v-if="isLoading" class="space-y-3 animate-pulse">
-      <div class="h-4 bg-gray-200 rounded w-1/3" />
-      <div class="h-4 bg-gray-200 rounded w-2/3" />
-      <div class="h-4 bg-gray-200 rounded w-1/2" />
+    <!-- Creative loading state -->
+    <div
+      v-if="isLoading"
+      class="proof-loader"
+      role="status"
+      aria-live="polite"
+      aria-label="Review in progress"
+    >
+      <div class="proof-loader__sheet">
+        <div class="proof-loader__scan" />
+
+        <div class="proof-loader__line proof-loader__line--1" />
+        <div class="proof-loader__line proof-loader__line--2" />
+
+        <div class="proof-loader__line proof-loader__line--3 proof-loader__line--error">
+          <span class="proof-loader__error-strike" />
+        </div>
+
+        <div class="proof-loader__line proof-loader__line--4 proof-loader__line--fixed" />
+        <div class="proof-loader__line proof-loader__line--5" />
+
+        <div class="proof-loader__cursor" />
+        <div class="proof-loader__lens" />
+      </div>
+
+      <p class="proof-loader__title">Reviewing your text</p>
+      <p class="proof-loader__subtitle">
+        <span class="proof-loader__message proof-loader__message--a">Detecting issues</span>
+        <span class="proof-loader__message proof-loader__message--b">Applying corrections</span>
+        <span class="proof-loader__message proof-loader__message--c">Preparing feedback</span>
+      </p>
     </div>
 
     <!-- Error state -->
@@ -277,3 +303,248 @@ const formatDimensionLabel = (dimension: string) => {
   return labels[dimension] ?? dimension;
 };
 </script>
+
+<style scoped>
+.proof-loader {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f9fafb 0%, #eef2ff 100%);
+  padding: 18px;
+}
+
+.proof-loader__sheet {
+  position: relative;
+  width: min(520px, 100%);
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.proof-loader__scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(37, 99, 235, 0.08) 45%,
+    rgba(16, 185, 129, 0.1) 55%,
+    transparent 100%
+  );
+  transform: translateX(-110%);
+  animation: review-scan 2.2s ease-in-out infinite;
+}
+
+.proof-loader__line {
+  height: 10px;
+  border-radius: 999px;
+  background: #d1d5db;
+  margin: 10px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.proof-loader__line--1 {
+  width: 92%;
+}
+
+.proof-loader__line--2 {
+  width: 86%;
+}
+
+.proof-loader__line--3 {
+  width: 78%;
+}
+
+.proof-loader__line--4 {
+  width: 82%;
+}
+
+.proof-loader__line--5 {
+  width: 64%;
+}
+
+.proof-loader__line--error {
+  background: #fca5a5;
+  animation: review-error-pulse 1.6s ease-in-out infinite;
+}
+
+.proof-loader__error-strike {
+  position: absolute;
+  left: -8%;
+  top: 48%;
+  width: 116%;
+  height: 2px;
+  background: #b91c1c;
+  transform: rotate(-2deg);
+}
+
+.proof-loader__line--fixed {
+  background: #86efac;
+  animation: review-fixed-reveal 2.2s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+.proof-loader__cursor {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  width: 2px;
+  height: 14px;
+  background: #2563eb;
+  animation: review-blink 1s steps(1) infinite;
+}
+
+.proof-loader__lens {
+  position: absolute;
+  top: 8px;
+  left: -42px;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #1d4ed8;
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  animation: review-lens-pass 2.2s ease-in-out infinite;
+}
+
+.proof-loader__lens::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 3px;
+  background: #1d4ed8;
+  border-radius: 999px;
+  right: -8px;
+  bottom: -1px;
+  transform: rotate(35deg);
+}
+
+.proof-loader__title {
+  margin: 12px 0 2px;
+  text-align: center;
+  font-weight: 600;
+  color: #111827;
+}
+
+.proof-loader__subtitle {
+  position: relative;
+  min-height: 20px;
+  margin: 0;
+  text-align: center;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.proof-loader__message {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.proof-loader__message--a {
+  animation: review-message-cycle 4.8s infinite;
+}
+
+.proof-loader__message--b {
+  animation: review-message-cycle 4.8s infinite;
+  animation-delay: 1.6s;
+}
+
+.proof-loader__message--c {
+  animation: review-message-cycle 4.8s infinite;
+  animation-delay: 3.2s;
+}
+
+@keyframes review-scan {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+@keyframes review-lens-pass {
+  0% {
+    transform: translateX(0) translateY(0);
+  }
+  30% {
+    transform: translateX(170px) translateY(6px);
+  }
+  65% {
+    transform: translateX(330px) translateY(12px);
+  }
+  100% {
+    transform: translateX(520px) translateY(18px);
+  }
+}
+
+@keyframes review-fixed-reveal {
+  0%,
+  35% {
+    transform: scaleX(0.25);
+    opacity: 0.5;
+  }
+  55%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes review-error-pulse {
+  0%,
+  100% {
+    filter: saturate(0.9);
+  }
+  50% {
+    filter: saturate(1.2);
+  }
+}
+
+@keyframes review-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes review-message-cycle {
+  0%,
+  10% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  18%,
+  44% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  52%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proof-loader__scan,
+  .proof-loader__line--error,
+  .proof-loader__line--fixed,
+  .proof-loader__cursor,
+  .proof-loader__lens,
+  .proof-loader__message {
+    animation: none !important;
+  }
+}
+</style>
