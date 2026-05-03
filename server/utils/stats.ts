@@ -9,15 +9,19 @@ import {
 } from './timezone'
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
+const LEGACY_CORRECTION_TYPES = ['grammar', 'spelling', 'vocabulary'] as const
+const EXTENDED_CORRECTION_TYPES = ['punctuation', 'idiomatic', 'register'] as const
+const ALL_CORRECTION_TYPES = [...LEGACY_CORRECTION_TYPES, ...EXTENDED_CORRECTION_TYPES] as const
 
 type CEFROrder = (typeof CEFR_ORDER)[number]
+type CorrectionType = (typeof ALL_CORRECTION_TYPES)[number]
 
 export type StatsRange = 'week' | 'month' | 'all'
 
 interface SavedTip {
   tipId: string
   tip: string
-  type: 'grammar' | 'spelling' | 'vocabulary'
+  type: CorrectionType
   reference_link?: string
   original?: string
   corrected?: string
@@ -32,7 +36,7 @@ interface LeanEntry {
     corrections: Array<{
       original: string
       corrected: string
-      type: 'grammar' | 'spelling' | 'vocabulary'
+      type: CorrectionType
       tip?: string
       reference_link?: string
     }>
@@ -41,6 +45,9 @@ interface LeanEntry {
       grammar: number
       spelling: number
       vocabulary: number
+      punctuation?: number
+      idiomatic?: number
+      register?: number
       error_rate?: number
     }
     cefrLevel: {
@@ -52,6 +59,52 @@ interface LeanEntry {
         examples: string[]
       }>
     }
+  }
+}
+
+function createEmptyTypeTotals(): Record<CorrectionType, number> {
+  return {
+    grammar: 0,
+    spelling: 0,
+    vocabulary: 0,
+    punctuation: 0,
+    idiomatic: 0,
+    register: 0
+  }
+}
+
+function deriveCountsFromCorrections(entry: LeanEntry): Record<CorrectionType, number> {
+  const totals = createEmptyTypeTotals()
+  for (const correction of entry.review?.corrections ?? []) {
+    totals[correction.type] += 1
+  }
+  return totals
+}
+
+function getNormalizedStats(entry: LeanEntry) {
+  const stats = entry.review?.stats
+  if (!stats) {
+    return {
+      total_errors: 0,
+      ...createEmptyTypeTotals()
+    }
+  }
+
+  const derived = deriveCountsFromCorrections(entry)
+
+  const totals = createEmptyTypeTotals()
+  totals.grammar = Math.max(stats.grammar ?? 0, derived.grammar)
+  totals.spelling = Math.max(stats.spelling ?? 0, derived.spelling)
+  totals.vocabulary = Math.max(stats.vocabulary ?? 0, derived.vocabulary)
+  totals.punctuation = Math.max(stats.punctuation ?? 0, derived.punctuation)
+  totals.idiomatic = Math.max(stats.idiomatic ?? 0, derived.idiomatic)
+  totals.register = Math.max(stats.register ?? 0, derived.register)
+
+  const totalFromBuckets = ALL_CORRECTION_TYPES.reduce((acc, type) => acc + totals[type], 0)
+
+  return {
+    total_errors: Math.max(stats.total_errors ?? 0, totalFromBuckets),
+    ...totals
   }
 }
 
@@ -101,11 +154,11 @@ function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   const secondHalf = reviewedEntries.slice(splitIndex)
 
   const firstAvg = firstHalf.reduce((acc, entry) => {
-    const errorRate = calculateErrorRate(entry.review?.stats.total_errors ?? 0, entry.word_count ?? 0)
+    const errorRate = calculateErrorRate(getNormalizedStats(entry).total_errors, entry.word_count ?? 0)
     return acc + errorRate
   }, 0) / firstHalf.length
   const secondAvg = secondHalf.reduce((acc, entry) => {
-    const errorRate = calculateErrorRate(entry.review?.stats.total_errors ?? 0, entry.word_count ?? 0)
+    const errorRate = calculateErrorRate(getNormalizedStats(entry).total_errors, entry.word_count ?? 0)
     return acc + errorRate
   }, 0) / secondHalf.length
 
@@ -116,17 +169,14 @@ function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   return Math.round(((firstAvg - secondAvg) / firstAvg) * 100)
 }
 
-function getMostCommonErrorType(reviewedEntries: LeanEntry[]): 'grammar' | 'spelling' | 'vocabulary' | 'none' {
-  const totals = {
-    grammar: 0,
-    spelling: 0,
-    vocabulary: 0
-  }
+function getMostCommonErrorType(reviewedEntries: LeanEntry[]): CorrectionType | 'none' {
+  const totals = createEmptyTypeTotals()
 
   for (const entry of reviewedEntries) {
-    totals.grammar += entry.review?.stats.grammar ?? 0
-    totals.spelling += entry.review?.stats.spelling ?? 0
-    totals.vocabulary += entry.review?.stats.vocabulary ?? 0
+    const normalizedStats = getNormalizedStats(entry)
+    for (const type of ALL_CORRECTION_TYPES) {
+      totals[type] += normalizedStats[type]
+    }
   }
 
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1])
@@ -134,7 +184,7 @@ function getMostCommonErrorType(reviewedEntries: LeanEntry[]): 'grammar' | 'spel
     return 'none'
   }
 
-  return sorted[0][0] as 'grammar' | 'spelling' | 'vocabulary'
+  return sorted[0][0] as CorrectionType
 }
 
 function levelRank(level: string | undefined): number {
@@ -153,9 +203,10 @@ function buildRecommendations(reviewedEntries: LeanEntry[]) {
   }
 
   for (const entry of reviewedEntries) {
-    totals.grammar += entry.review?.stats.grammar ?? 0
-    totals.spelling += entry.review?.stats.spelling ?? 0
-    totals.vocabulary += entry.review?.stats.vocabulary ?? 0
+    const normalizedStats = getNormalizedStats(entry)
+    totals.grammar += normalizedStats.grammar
+    totals.spelling += normalizedStats.spelling
+    totals.vocabulary += normalizedStats.vocabulary
   }
 
   const recommendationMap: Record<'grammar' | 'spelling' | 'vocabulary', { area: string; suggestion: string; examples: string[]; resourceLink: string }> = {
@@ -213,18 +264,22 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
   const reviewedEntries = entries.filter((entry) => entry.review)
   const savedTipIds = new Set(savedTips.map((tip) => tip.tipId))
 
-  const totalErrors = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.total_errors ?? 0), 0)
-  const totalGrammar = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.grammar ?? 0), 0)
-  const totalSpelling = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.spelling ?? 0), 0)
-  const totalVocabulary = reviewedEntries.reduce((acc, entry) => acc + (entry.review?.stats.vocabulary ?? 0), 0)
+  const totalErrors = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).total_errors, 0)
+  const totalGrammar = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).grammar, 0)
+  const totalSpelling = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).spelling, 0)
+  const totalVocabulary = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).vocabulary, 0)
+  const totalPunctuation = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).punctuation, 0)
+  const totalIdiomatic = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).idiomatic, 0)
+  const totalRegister = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).register, 0)
   const totalWordCount = reviewedEntries.reduce((acc, entry) => acc + (entry.word_count ?? 0), 0)
 
   const trendByDay = new Map<string, { errors: number; wordCount: number }>()
   for (const entry of reviewedEntries) {
     const day = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
+    const normalizedStats = getNormalizedStats(entry)
     const current = trendByDay.get(day) ?? { errors: 0, wordCount: 0 }
     trendByDay.set(day, {
-      errors: current.errors + (entry.review?.stats.total_errors ?? 0),
+      errors: current.errors + normalizedStats.total_errors,
       wordCount: current.wordCount + (entry.word_count ?? 0)
     })
   }
@@ -285,10 +340,16 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
       grammar: totalGrammar,
       spelling: totalSpelling,
       vocabulary: totalVocabulary,
+      punctuation: totalPunctuation,
+      idiomatic: totalIdiomatic,
+      register: totalRegister,
       total: totalErrors,
       grammarRate: calculateErrorRate(totalGrammar, totalWordCount),
       spellingRate: calculateErrorRate(totalSpelling, totalWordCount),
       vocabularyRate: calculateErrorRate(totalVocabulary, totalWordCount),
+      punctuationRate: calculateErrorRate(totalPunctuation, totalWordCount),
+      idiomaticRate: calculateErrorRate(totalIdiomatic, totalWordCount),
+      registerRate: calculateErrorRate(totalRegister, totalWordCount),
       averageRate: calculateErrorRate(totalErrors, totalWordCount)
     },
     errorTrend: Array.from(trendByDay.entries()).map(([date, { errors, wordCount }]) => ({
