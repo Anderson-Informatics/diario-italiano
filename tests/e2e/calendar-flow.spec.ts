@@ -90,6 +90,9 @@ test('calendar supports month navigation and shows no-entry message for past emp
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/dashboard$/)
 
+  await expect(page.getByRole('button', { name: 'Turn off distraction free mode' })).toBeVisible()
+  await page.getByRole('button', { name: 'Turn off distraction free mode' }).click()
+
   await expect(page.getByText('4 day streak')).toBeVisible()
 
   await page.getByRole('button', { name: 'Previous month' }).click()

@@ -8,63 +8,76 @@
       @submit="handleSubmit"
       @cancel="cancelEdit"
     />
-
-    <p
-      v-if="activeReviewPreferenceHint"
-      class="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800"
-    >
-      {{ activeReviewPreferenceHint }}
-    </p>
-
-    <ReviewResults
-      v-if="hasSubmittedEntry && showReview"
-      :original-text="lastSubmittedText"
-      :review="review"
-      :is-loading="reviewLoading"
-      :error-message="reviewError"
-    />
-
-    <EntryHistory
-      v-if="hasSubmittedEntry && (showReview || entries.length > 0)"
-      :entries="entries"
-      :loading="entriesLoading"
-      :current-page="currentPage"
-      :total-pages="totalPages"
-      :timezone="userTimezone"
-      @select="loadEntry"
-      @page-change="loadEntries"
-    />
-
     <div
-      v-if="hasSubmittedEntry"
-      class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
+      v-if="isDistractionFreeActive"
+      class="flex justify-center"
     >
-      <div class="lg:col-span-2">
-        <Calendar
-          :entry-days="calendarEntryDays"
-          :streak="calendarStreak"
-          :loading="calendarLoading"
-          :timezone="userTimezone"
-          @select="handleDateSelect"
-          @month-change="handleCalendarMonthChange"
-        />
-        <p
-          v-if="calendarNotice"
-          class="mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800"
-        >
-          {{ calendarNotice }}
-        </p>
-      </div>
-
-      <div>
-        <FocusAreas
-          :focus-areas="focusAreas"
-          :cefr-level="review?.cefrLevel.estimated ?? cefrLevel"
-          :confidence="review?.cefrLevel.confidence ?? confidence"
-          :focus-period-label="focusPeriodLabel"
-        />
-      </div>
+      <button
+        class="rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+        @click="disableDistractionFreeMode"
+      >
+        Turn off distraction free mode
+      </button>
     </div>
+
+    <template v-else>
+      <p
+        v-if="activeReviewPreferenceHint"
+        class="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800"
+      >
+        {{ activeReviewPreferenceHint }}
+      </p>
+
+      <ReviewResults
+        v-if="hasSubmittedEntry && showReview"
+        :original-text="lastSubmittedText"
+        :review="review"
+        :is-loading="reviewLoading"
+        :error-message="reviewError"
+      />
+
+      <EntryHistory
+        v-if="hasSubmittedEntry && (showReview || entries.length > 0)"
+        :entries="entries"
+        :loading="entriesLoading"
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :timezone="userTimezone"
+        @select="loadEntry"
+        @page-change="loadEntries"
+      />
+
+      <div
+        v-if="hasSubmittedEntry"
+        class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
+      >
+        <div class="lg:col-span-2">
+          <Calendar
+            :entry-days="calendarEntryDays"
+            :streak="calendarStreak"
+            :loading="calendarLoading"
+            :timezone="userTimezone"
+            @select="handleDateSelect"
+            @month-change="handleCalendarMonthChange"
+          />
+          <p
+            v-if="calendarNotice"
+            class="mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800"
+          >
+            {{ calendarNotice }}
+          </p>
+        </div>
+
+        <div>
+          <FocusAreas
+            :focus-areas="focusAreas"
+            :cefr-level="review?.cefrLevel.estimated ?? cefrLevel"
+            :confidence="review?.cefrLevel.confidence ?? confidence"
+            :focus-period-label="focusPeriodLabel"
+          />
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -76,7 +89,11 @@ import type {
   Review,
   WritingReviewPhase,
 } from "../types/index";
-import { getCurrentYearMonthInTimeZone } from "../utils/timezone";
+import {
+  getCurrentYearMonthInTimeZone,
+  getDayKeyInTimeZone,
+  getTodayKeyInTimeZone,
+} from "../utils/timezone";
 
 definePageMeta({
   middleware: "auth",
@@ -91,6 +108,7 @@ const showReview = ref(false);
 const hasSubmittedEntry = ref(false);
 const editingEntryId = ref<string | null>(null);
 const lastSubmittedText = ref("");
+const distractionFreeDismissed = ref(false);
 
 const {
   review,
@@ -239,6 +257,24 @@ const activeReviewPreferenceHint = computed(() => {
 
   return `AI reviews are using your fixed learner phase: ${authStore.user.targetReviewPhase}. You can change this in Profile & Settings.`;
 });
+
+const hasCompletedTodayEntry = computed(() => {
+  const todayKey = getTodayKeyInTimeZone(userTimezone.value);
+
+  return entries.value.some(
+    (entry) =>
+      getDayKeyInTimeZone(new Date(entry.created_at), userTimezone.value) ===
+      todayKey,
+  );
+});
+
+const isDistractionFreeActive = computed(() => {
+  return !hasCompletedTodayEntry.value && !distractionFreeDismissed.value;
+});
+
+const disableDistractionFreeMode = () => {
+  distractionFreeDismissed.value = true;
+};
 
 const loadEntries = async (page = currentPage.value) => {
   entriesLoading.value = true;
@@ -426,6 +462,7 @@ watch(userTimezone, (timezone) => {
   const month = getCurrentYearMonthInTimeZone(timezone);
   calendarMonth.value = month;
   loadCalendarDates(month.year, month.month);
+  distractionFreeDismissed.value = false;
 });
 
 onMounted(() => {
