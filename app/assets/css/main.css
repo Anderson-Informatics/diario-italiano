@@ -23,6 +23,12 @@
   background-color: theme('colors.blue.200');
 }
 
+.calendar-day:disabled {
+  /* Keep outside-month days visually controlled by text color classes, not UA opacity */
+  opacity: 1;
+  cursor: default;
+}
+
 .calendar-day.today {
   background-color: theme('colors.primary.600');
   color: white;
