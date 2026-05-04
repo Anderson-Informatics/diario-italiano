@@ -1,5 +1,9 @@
 export const DEFAULT_TIMEZONE = 'UTC'
 
+const timeZoneValidityCache = new Map<string, boolean>()
+const datePartsFormatterCache = new Map<string, Intl.DateTimeFormat>()
+const offsetFormatterCache = new Map<string, Intl.DateTimeFormat>()
+
 interface DateParts {
   year: number
   month: number
@@ -28,10 +32,17 @@ export function isValidTimeZone(value: unknown): value is string {
     return false
   }
 
+  const cached = timeZoneValidityCache.get(value)
+  if (cached !== undefined) {
+    return cached
+  }
+
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: value })
+    timeZoneValidityCache.set(value, true)
     return true
   } catch {
+    timeZoneValidityCache.set(value, false)
     return false
   }
 }
@@ -40,20 +51,49 @@ export function normalizeTimeZone(value: unknown): string {
   return isValidTimeZone(value) ? value : DEFAULT_TIMEZONE
 }
 
-export function getDatePartsInTimeZone(date: Date, timeZone: string): DateParts {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: normalizeTimeZone(timeZone),
+function getDatePartsFormatter(timeZone: string): Intl.DateTimeFormat {
+  const formatter = datePartsFormatterCache.get(timeZone)
+  if (formatter) {
+    return formatter
+  }
+
+  const created = new Intl.DateTimeFormat('en-US', {
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
   })
+  datePartsFormatterCache.set(timeZone, created)
+  return created
+}
 
+function getOffsetFormatter(timeZone: string): Intl.DateTimeFormat {
+  const formatter = offsetFormatterCache.get(timeZone)
+  if (formatter) {
+    return formatter
+  }
+
+  const created = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'shortOffset'
+  })
+  offsetFormatterCache.set(timeZone, created)
+  return created
+}
+
+function getDatePartsFromFormatter(formatter: Intl.DateTimeFormat, date: Date): DateParts {
   const parts = formatter.formatToParts(date)
   const year = Number.parseInt(parts.find((part) => part.type === 'year')?.value || '0', 10)
   const month = Number.parseInt(parts.find((part) => part.type === 'month')?.value || '1', 10)
   const day = Number.parseInt(parts.find((part) => part.type === 'day')?.value || '1', 10)
 
   return { year, month, day }
+}
+
+export function getDatePartsInTimeZone(date: Date, timeZone: string): DateParts {
+  const normalizedTimeZone = normalizeTimeZone(timeZone)
+  const formatter = getDatePartsFormatter(normalizedTimeZone)
+  return getDatePartsFromFormatter(formatter, date)
 }
 
 export function datePartsToDayKey(parts: DateParts): string {
@@ -67,6 +107,13 @@ export function getDayKeyInTimeZone(date: Date, timeZone: string): string {
   return datePartsToDayKey(getDatePartsInTimeZone(date, timeZone))
 }
 
+export function createDayKeyGetter(timeZone: string): (date: Date) => string {
+  const normalizedTimeZone = normalizeTimeZone(timeZone)
+  const formatter = getDatePartsFormatter(normalizedTimeZone)
+
+  return (date: Date) => datePartsToDayKey(getDatePartsFromFormatter(formatter, date))
+}
+
 export function shiftDatePartsByDays(parts: DateParts, days: number): DateParts {
   const utcDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days))
   return {
@@ -77,10 +124,8 @@ export function shiftDatePartsByDays(parts: DateParts, days: number): DateParts 
 }
 
 export function getTimeZoneOffsetMinutes(at: Date, timeZone: string): number {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: normalizeTimeZone(timeZone),
-    timeZoneName: 'shortOffset'
-  })
+  const normalizedTimeZone = normalizeTimeZone(timeZone)
+  const formatter = getOffsetFormatter(normalizedTimeZone)
   const parts = formatter.formatToParts(at)
   const offsetPart = parts.find((part) => part.type === 'timeZoneName')?.value || 'GMT'
   return parseOffsetToMinutes(offsetPart)

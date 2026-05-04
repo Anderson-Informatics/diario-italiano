@@ -6,8 +6,10 @@
       class="proof-loader"
       role="status"
       aria-live="polite"
-      aria-label="Review in progress"
+      aria-atomic="true"
     >
+      <span class="sr-only">Review in progress. Preparing feedback.</span>
+
       <div class="proof-loader__sheet">
         <div class="proof-loader__scan" />
 
@@ -26,10 +28,10 @@
       </div>
 
       <p class="proof-loader__title">Reviewing your text</p>
-      <p class="proof-loader__subtitle">
-        <span class="proof-loader__message proof-loader__message--a">Detecting issues</span>
-        <span class="proof-loader__message proof-loader__message--b">Applying corrections</span>
-        <span class="proof-loader__message proof-loader__message--c">Preparing feedback</span>
+      <p class="proof-loader__subtitle" aria-hidden="true">
+        <span class="proof-loader__message proof-loader__message--a" aria-hidden="true">Detecting issues</span>
+        <span class="proof-loader__message proof-loader__message--b" aria-hidden="true">Applying corrections</span>
+        <span class="proof-loader__message proof-loader__message--c" aria-hidden="true">Preparing feedback</span>
       </p>
     </div>
 
@@ -88,6 +90,13 @@
             review.stats.vocabulary
           }}</span>
           vocabulary
+          <template v-if="(review.stats.punctuation ?? 0) > 0">
+            ·
+            <span class="text-purple-600 font-medium">{{
+              review.stats.punctuation
+            }}</span>
+            punctuation
+          </template>
           <span class="ml-1 text-gray-500"
             >({{ review.stats.total_errors }} total)</span
           >
@@ -267,6 +276,9 @@ const getTagClass = (type: string) => {
     grammar: "error-grammar",
     spelling: "error-spelling",
     vocabulary: "error-vocab",
+    punctuation: "error-punctuation",
+    idiomatic: "error-vocab",
+    register: "error-grammar",
   };
   return classes[type] ?? "";
 };
@@ -276,6 +288,9 @@ const getBorderColor = (type: string) => {
     grammar: "border-red-500",
     spelling: "border-orange-500",
     vocabulary: "border-blue-500",
+    punctuation: "border-purple-500",
+    idiomatic: "border-blue-500",
+    register: "border-red-500",
   };
   return colors[type] ?? "border-gray-300";
 };
@@ -545,6 +560,23 @@ const formatDimensionLabel = (dimension: string) => {
   .proof-loader__lens,
   .proof-loader__message {
     animation: none !important;
+  }
+
+  .proof-loader__scan,
+  .proof-loader__cursor,
+  .proof-loader__lens {
+    display: none;
+  }
+
+  .proof-loader__message {
+    display: none;
+    position: static;
+    transform: none;
+  }
+
+  .proof-loader__message--a {
+    display: inline;
+    opacity: 1;
   }
 }
 </style>

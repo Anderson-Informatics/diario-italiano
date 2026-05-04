@@ -1,10 +1,10 @@
 import { JournalEntry } from '../../models/JournalEntry'
 import { User } from '../../models/User'
 import {
+  createDayKeyGetter,
   datePartsToDayKey,
   DEFAULT_TIMEZONE,
   getDatePartsInTimeZone,
-  getDayKeyInTimeZone,
   getMonthUtcRangeInTimeZone,
   getNowYearMonthInTimeZone,
   shiftDatePartsByDays
@@ -54,10 +54,11 @@ export default defineEventHandler(async (event) => {
       .sort({ created_at: -1 })
       .lean(),
     JournalEntry.find({ userId })
-      .select('created_at')
+      .select('created_at review')
       .sort({ created_at: -1 })
       .lean()
   ])
+  const getDayKey = createDayKeyGetter(timeZone)
 
   const dayMap = new Map<string, {
     date: string
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
   }>()
 
   for (const entry of monthEntries) {
-    const dayKey = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
+    const dayKey = getDayKey(new Date(entry.created_at))
 
     if (!dayMap.has(dayKey)) {
       dayMap.set(dayKey, {
@@ -80,7 +81,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const allDateKeys = new Set(
-    allEntries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone))
+    allEntries
+      .filter((entry) => Boolean(entry.review))
+        .map((entry) => getDayKey(new Date(entry.created_at)))
   )
 
   return {

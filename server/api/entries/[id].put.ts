@@ -1,12 +1,6 @@
 import { JournalEntry } from '../../models/JournalEntry'
-import { isValidReview } from '../../utils/review'
-
-function countWords(text: string): number {
-  if (!text || text.trim().length === 0) {
-    return 0
-  }
-  return text.trim().split(/\s+/).filter(word => word.length > 0).length
-}
+import { isValidReview, normalizeReviewForCompatibility } from '../../utils/review'
+import { countWords } from '../../utils/wordCounter'
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId
@@ -38,7 +32,7 @@ export default defineEventHandler(async (event) => {
     if (!isValidReview(review)) {
       throw createError({ statusCode: 400, message: 'Review payload is invalid' })
     }
-    entry.review = review
+    entry.review = normalizeReviewForCompatibility(review)
   }
 
   await entry.save()

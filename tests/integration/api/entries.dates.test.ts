@@ -60,8 +60,26 @@ describe('Entries dates endpoint integration', () => {
     yesterdayUtc.setUTCDate(yesterdayUtc.getUTCDate() - 1)
 
     const [todayEntry, yesterdayEntry] = await JournalEntry.create([
-      { userId: testUserId, content: 'Today entry' },
-      { userId: testUserId, content: 'Yesterday entry' }
+      {
+        userId: testUserId,
+        content: 'Today entry',
+        review: {
+          corrected_text: 'Today entry',
+          corrections: [],
+          stats: { total_errors: 0, grammar: 0, spelling: 0, vocabulary: 0 },
+          cefrLevel: { estimated: 'A1', confidence: 80, recommendations: [] }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Yesterday entry',
+        review: {
+          corrected_text: 'Yesterday entry',
+          corrections: [],
+          stats: { total_errors: 0, grammar: 0, spelling: 0, vocabulary: 0 },
+          cefrLevel: { estimated: 'A1', confidence: 80, recommendations: [] }
+        }
+      }
     ])
 
     await JournalEntry.collection.updateOne(

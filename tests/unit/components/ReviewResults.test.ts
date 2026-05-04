@@ -6,7 +6,10 @@ function getBorderColor(type: string): string {
   const colors: Record<string, string> = {
     grammar: 'border-red-500',
     spelling: 'border-orange-500',
-    vocabulary: 'border-blue-500'
+    vocabulary: 'border-blue-500',
+    punctuation: 'border-purple-500',
+    idiomatic: 'border-blue-500',
+    register: 'border-red-500'
   }
   return colors[type] ?? 'border-gray-300'
 }
@@ -15,7 +18,10 @@ function getTagClass(type: string): string {
   const classes: Record<string, string> = {
     grammar: 'error-grammar',
     spelling: 'error-spelling',
-    vocabulary: 'error-vocab'
+    vocabulary: 'error-vocab',
+    punctuation: 'error-punctuation',
+    idiomatic: 'error-vocab',
+    register: 'error-grammar'
   }
   return classes[type] ?? ''
 }
@@ -83,6 +89,10 @@ describe('ReviewResults display logic', () => {
     it('returns fallback for unknown type', () => {
       expect(getBorderColor('unknown')).toBe('border-gray-300')
     })
+
+    it('returns purple for punctuation errors', () => {
+      expect(getBorderColor('punctuation')).toBe('border-purple-500')
+    })
   })
 
   describe('getTagClass', () => {
@@ -100,6 +110,10 @@ describe('ReviewResults display logic', () => {
 
     it('returns empty string for unknown type', () => {
       expect(getTagClass('unknown')).toBe('')
+    })
+
+    it('returns error-punctuation for punctuation', () => {
+      expect(getTagClass('punctuation')).toBe('error-punctuation')
     })
   })
 

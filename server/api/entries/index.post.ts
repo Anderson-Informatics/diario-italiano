@@ -1,11 +1,5 @@
 import { JournalEntry } from '../../models/JournalEntry'
-
-function countWords(text: string): number {
-  if (!text || text.trim().length === 0) {
-    return 0
-  }
-  return text.trim().split(/\s+/).filter(word => word.length > 0).length
-}
+import { countWords } from '../../utils/wordCounter'
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId

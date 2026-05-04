@@ -66,6 +66,10 @@ describe('ReviewResults rendering', () => {
     })
 
     expect(wrapper.find('.proof-loader').exists()).toBe(true)
+    expect(wrapper.find('.proof-loader').attributes('role')).toBe('status')
+    expect(wrapper.find('.proof-loader').attributes('aria-atomic')).toBe('true')
+    expect(wrapper.text()).toContain('Review in progress. Preparing feedback.')
+    expect(wrapper.find('.proof-loader__subtitle').attributes('aria-hidden')).toBe('true')
   })
 
   it('renders error state', () => {
@@ -147,5 +151,37 @@ describe('ReviewResults rendering', () => {
 
     expect(wrapper.text()).not.toContain('Writing feedback')
     expect(wrapper.text()).toContain('Estimated CEFR Level')
+  })
+
+  it('renders punctuation stats and correction tag styling when present', () => {
+    const punctuationReview = {
+      ...mockReview,
+      corrections: [
+        {
+          original: 'Ciao,come',
+          corrected: 'Ciao, come',
+          type: 'punctuation' as const,
+          tip: 'Add a space after commas.'
+        }
+      ],
+      stats: {
+        total_errors: 1,
+        grammar: 0,
+        spelling: 0,
+        vocabulary: 0,
+        punctuation: 1
+      }
+    }
+
+    const wrapper = mount(ReviewResults, {
+      props: {
+        originalText: 'Ciao,come',
+        review: punctuationReview
+      }
+    })
+
+    expect(wrapper.text()).toContain('punctuation')
+    expect(wrapper.text()).toContain('1')
+    expect(wrapper.find('.error-tag').classes()).toContain('error-punctuation')
   })
 })

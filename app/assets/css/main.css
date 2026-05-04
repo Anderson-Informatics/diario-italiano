@@ -71,3 +71,8 @@
   background-color: theme('colors.blue.100'); 
   color: theme('colors.blue.900'); 
 }
+
+.error-punctuation {
+  background-color: theme('colors.purple.100');
+  color: theme('colors.purple.900');
+}

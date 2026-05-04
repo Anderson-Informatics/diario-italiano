@@ -109,6 +109,13 @@ const bars = computed(() => {
       width: `${Math.round((props.distribution.vocabulary / total) * 100)}%`,
       color: "bg-amber-500",
     },
+    {
+      key: "punctuation",
+      label: "Punctuation",
+      value: props.distribution.punctuation ?? 0,
+      width: `${Math.round(((props.distribution.punctuation ?? 0) / total) * 100)}%`,
+      color: "bg-purple-500",
+    },
   ];
 });
 </script>
