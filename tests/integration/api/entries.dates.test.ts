@@ -110,4 +110,39 @@ describe('Entries dates endpoint integration', () => {
     ).toBe(true)
     expect(result.streak).toBe(2)
   })
+
+  it('includes adjacent visible days from the previous month', async () => {
+    const previousMonthEntry = await JournalEntry.create({
+      userId: testUserId,
+      content: 'Visible previous month entry',
+      review: {
+        corrected_text: 'Visible previous month entry',
+        corrections: [],
+        stats: { total_errors: 0, grammar: 0, spelling: 0, vocabulary: 0 },
+        cefrLevel: { estimated: 'A1', confidence: 80, recommendations: [] }
+      }
+    })
+
+    await JournalEntry.collection.updateOne(
+      { _id: previousMonthEntry._id },
+      { $set: { created_at: new Date('2026-03-31T12:00:00.000Z') } },
+    )
+
+    const { default: handler } = await import('../../../server/api/entries/dates.get')
+
+    const result = await handler({
+      context: { userId: String(testUserId) },
+      query: {
+        year: '2026',
+        month: '4',
+      }
+    })
+
+    expect(result.days).toContainEqual({
+      date: '2026-03-31',
+      entryId: String(previousMonthEntry._id),
+      wordCount: previousMonthEntry.word_count,
+      hasReview: true,
+    })
+  })
 })

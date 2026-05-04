@@ -25,7 +25,13 @@ test('calendar supports month navigation and shows no-entry message for past emp
   const now = new Date()
   const currentYear = now.getUTCFullYear()
   const currentMonth = now.getUTCMonth() + 1
-  const nonTodayDay = now.getUTCDate() === 2 ? 3 : 2
+  const todayDay = now.getUTCDate()
+  const firstDayOfWeek = new Date(Date.UTC(currentYear, currentMonth - 1, 1)).getUTCDay()
+  const daysInCurrentMonth = new Date(Date.UTC(currentYear, currentMonth, 0)).getUTCDate()
+  const outsideMonthDate = firstDayOfWeek > 0
+    ? new Date(Date.UTC(currentYear, currentMonth - 1, 1 - firstDayOfWeek, 12, 0, 0))
+    : new Date(Date.UTC(currentYear, currentMonth - 1, daysInCurrentMonth + 1, 12, 0, 0))
+  const outsideMonthDateKey = `${String(outsideMonthDate.getUTCFullYear()).padStart(4, '0')}-${String(outsideMonthDate.getUTCMonth() + 1).padStart(2, '0')}-${String(outsideMonthDate.getUTCDate()).padStart(2, '0')}`
 
   await page.route('**/api/entries**', async (route) => {
     const url = new URL(route.request().url())
@@ -43,8 +49,8 @@ test('calendar supports month navigation and shows no-entry message for past emp
             id: 'existing-entry',
             content: 'Entry from a previous submission',
             word_count: 5,
-            created_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(nonTodayDay).padStart(2, '0')}T12:00:00.000Z`,
-            updated_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(nonTodayDay).padStart(2, '0')}T12:00:00.000Z`
+            created_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}T12:00:00.000Z`,
+            updated_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}T12:00:00.000Z`
           }
         ],
         pagination: {
@@ -72,6 +78,12 @@ test('calendar supports month navigation and shows no-entry message for past emp
         days: isCurrentMonth
           ? [
               {
+                date: outsideMonthDateKey,
+                entryId: 'entry-outside-month',
+                wordCount: 33,
+                hasReview: true
+              },
+              {
                 date: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-10`,
                 entryId: 'entry-current-month',
                 wordCount: 42,
@@ -91,15 +103,31 @@ test('calendar supports month navigation and shows no-entry message for past emp
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/dashboard$/)
 
-  await expect(page.getByRole('button', { name: 'Turn off distraction free mode' })).toBeVisible()
-  await page.getByRole('button', { name: 'Turn off distraction free mode' }).click()
-
   await expect(page.getByText('4 day streak')).toBeVisible()
+
+  const outsideMonthEntryDay = page.locator('button.calendar-day.outside-month.has-entry[title="33 words"]')
+  await expect(outsideMonthEntryDay).toBeVisible()
+  await expect(outsideMonthEntryDay).toHaveText(String(outsideMonthDate.getUTCDate()))
+
+  const markerStyle = await outsideMonthEntryDay.evaluate((element) => {
+    const style = window.getComputedStyle(element, '::after')
+    return {
+      content: style.content,
+      width: style.width,
+      height: style.height,
+      display: style.display
+    }
+  })
+
+  expect(markerStyle.content).not.toBe('none')
+  expect(markerStyle.width).toBe('6px')
+  expect(markerStyle.height).toBe('6px')
+  expect(markerStyle.display).toBe('block')
 
   await page.getByRole('button', { name: 'Previous month' }).click()
   await expect(page.getByText('1 day streak')).toBeVisible()
 
-  const firstActiveDay = page.locator('button.calendar-day:not([disabled])').first()
+  const firstActiveDay = page.locator('button.calendar-day:not(.outside-month)').first()
   await firstActiveDay.click()
 
   await expect(page.getByText('No entry for this day.')).toBeVisible()
@@ -191,7 +219,7 @@ test('calendar day with an entry opens that entry in the editor', async ({ page 
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/dashboard$/)
 
-  const entryDayButton = page.locator('button.calendar-day[title="7 words"]:not([disabled])')
+  const entryDayButton = page.locator('button.calendar-day[title="7 words"]:not(.outside-month)')
   await expect(entryDayButton).toBeVisible()
   await entryDayButton.click()
 
