@@ -29,6 +29,11 @@
   cursor: default;
 }
 
+.calendar-day.outside-month {
+  cursor: default;
+  pointer-events: none;
+}
+
 .calendar-day.today {
   background-color: theme('colors.primary.600');
   color: white;
@@ -42,10 +47,13 @@
   content: '';
   position: absolute;
   bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 6px;
   height: 6px;
   background-color: theme('colors.accent.600');
   border-radius: 50%;
+  display: block;
 }
 
 /* Error tags */

@@ -48,11 +48,11 @@
         :class="[
           'calendar-day',
           day.isCurrentMonth ? 'text-gray-800' : 'text-gray-300',
+          day.isCurrentMonth ? '' : 'outside-month',
           day.isToday ? 'today' : '',
           day.hasEntry ? 'has-entry' : '',
         ]"
         :title="day.tooltip"
-        :disabled="!day.isCurrentMonth"
       >
         {{ day.dayNumber }}
       </button>

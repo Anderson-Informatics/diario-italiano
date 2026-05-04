@@ -5,10 +5,25 @@ import {
   datePartsToDayKey,
   DEFAULT_TIMEZONE,
   getDatePartsInTimeZone,
-  getMonthUtcRangeInTimeZone,
   getNowYearMonthInTimeZone,
+  getStartOfDayUTCInTimeZoneFromParts,
   shiftDatePartsByDays
 } from '../../utils/timezone'
+
+function getCalendarGridRange(year: number, month: number, timeZone: string): {
+  start: Date
+  end: Date
+} {
+  const firstDayParts = { year, month, day: 1 }
+  const firstDayOfWeek = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+  const gridStartParts = shiftDatePartsByDays(firstDayParts, -firstDayOfWeek)
+  const gridEndParts = shiftDatePartsByDays(gridStartParts, 42)
+
+  return {
+    start: getStartOfDayUTCInTimeZoneFromParts(gridStartParts, timeZone),
+    end: getStartOfDayUTCInTimeZoneFromParts(gridEndParts, timeZone)
+  }
+}
 
 function computeStreak(dateKeys: Set<string>, timeZone: string): number {
   let streak = 0
@@ -44,12 +59,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'month must be between 1 and 12' })
   }
 
-  const { start: monthStart, end: monthEnd } = getMonthUtcRangeInTimeZone(year, month, timeZone)
+  const { start: gridStart, end: gridEnd } = getCalendarGridRange(year, month, timeZone)
 
-  const [monthEntries, allEntries] = await Promise.all([
+  const [visibleEntries, allEntries] = await Promise.all([
     JournalEntry.find({
       userId,
-      created_at: { $gte: monthStart, $lt: monthEnd }
+      created_at: { $gte: gridStart, $lt: gridEnd }
     })
       .sort({ created_at: -1 })
       .lean(),
@@ -67,7 +82,7 @@ export default defineEventHandler(async (event) => {
     hasReview: boolean
   }>()
 
-  for (const entry of monthEntries) {
+  for (const entry of visibleEntries) {
     const dayKey = getDayKey(new Date(entry.created_at))
 
     if (!dayMap.has(dayKey)) {

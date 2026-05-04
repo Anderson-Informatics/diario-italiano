@@ -116,4 +116,56 @@ describe('/api/entries/dates handler', () => {
     ])
     expect(result.streak).toBeGreaterThanOrEqual(1)
   })
+
+  it('includes previous-month days that are visible in the calendar grid', async () => {
+    findUserByIdMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ timezone: 'UTC' }) })
+    })
+
+    const visibleLeanMock = vi.fn().mockResolvedValue([
+      {
+        _id: 'entry-prev-month',
+        created_at: '2026-03-31T12:00:00.000Z',
+        word_count: 18,
+        review: { corrected_text: 'prev' }
+      },
+      {
+        _id: 'entry-current-month',
+        created_at: '2026-04-02T12:00:00.000Z',
+        word_count: 22,
+        review: undefined
+      }
+    ])
+
+    const allLeanMock = vi.fn().mockResolvedValue([])
+    const visibleSortMock = vi.fn().mockReturnValue({ lean: visibleLeanMock })
+    const allSortMock = vi.fn().mockReturnValue({ lean: allLeanMock })
+    const allSelectMock = vi.fn().mockReturnValue({ sort: allSortMock })
+
+    findMock
+      .mockReturnValueOnce({ sort: visibleSortMock })
+      .mockReturnValueOnce({ select: allSelectMock })
+
+    const { default: handler } = await import('../../../server/api/entries/dates.get')
+
+    const result = await handler({
+      context: { userId: 'user-1' },
+      query: { year: '2026', month: '4' }
+    })
+
+    expect(result.days).toEqual([
+      {
+        date: '2026-03-31',
+        entryId: 'entry-prev-month',
+        wordCount: 18,
+        hasReview: true
+      },
+      {
+        date: '2026-04-02',
+        entryId: 'entry-current-month',
+        wordCount: 22,
+        hasReview: false
+      }
+    ])
+  })
 })
