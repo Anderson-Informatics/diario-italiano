@@ -80,8 +80,8 @@ describe('/api/entries/dates handler', () => {
     ])
 
     const allLeanMock = vi.fn().mockResolvedValue([
-      { created_at: new Date().toISOString() },
-      { created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() }
+      { created_at: new Date().toISOString(), review: { corrected_text: 'x' } },
+      { created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), review: { corrected_text: 'y' } }
     ])
 
     const monthSortMock = vi.fn().mockReturnValue({ lean: monthLeanMock })

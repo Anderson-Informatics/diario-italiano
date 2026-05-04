@@ -25,6 +25,7 @@ test('calendar supports month navigation and shows no-entry message for past emp
   const now = new Date()
   const currentYear = now.getUTCFullYear()
   const currentMonth = now.getUTCMonth() + 1
+  const nonTodayDay = now.getUTCDate() === 2 ? 3 : 2
 
   await page.route('**/api/entries**', async (route) => {
     const url = new URL(route.request().url())
@@ -42,8 +43,8 @@ test('calendar supports month navigation and shows no-entry message for past emp
             id: 'existing-entry',
             content: 'Entry from a previous submission',
             word_count: 5,
-            created_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-02T12:00:00.000Z`,
-            updated_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-02T12:00:00.000Z`
+            created_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(nonTodayDay).padStart(2, '0')}T12:00:00.000Z`,
+            updated_at: `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}-${String(nonTodayDay).padStart(2, '0')}T12:00:00.000Z`
           }
         ],
         pagination: {

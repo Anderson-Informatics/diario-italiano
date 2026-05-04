@@ -1,8 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { Schema, model, Document } from 'mongoose'
 import { DEFAULT_TIMEZONE, isValidTimeZone } from '../utils/timezone'
-
-type WritingReviewPhase = 'A1-A2' | 'B1-B2' | 'C1-C2'
+import type { WritingReviewPhase } from '../../app/types/index'
 
 interface ISavedTip {
   tipId: string

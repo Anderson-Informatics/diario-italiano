@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const findOneMock = vi.fn()
 const isValidReviewMock = vi.fn()
+const normalizeReviewForCompatibilityMock = vi.fn()
 
 const createErrorMock = vi.fn((input: { statusCode: number; message: string }) =>
   Object.assign(new Error(input.message), input)
@@ -14,7 +15,8 @@ vi.mock('../../../server/models/JournalEntry', () => ({
 }))
 
 vi.mock('../../../server/utils/review', () => ({
-  isValidReview: isValidReviewMock
+  isValidReview: isValidReviewMock,
+  normalizeReviewForCompatibility: normalizeReviewForCompatibilityMock
 }))
 
 beforeEach(() => {
@@ -79,6 +81,7 @@ describe('/api/entries/[id] put handler', () => {
 
     findOneMock.mockResolvedValue(entry)
     isValidReviewMock.mockReturnValue(true)
+    normalizeReviewForCompatibilityMock.mockReturnValue(enrichedReview)
 
     const { default: handler } = await import('../../../server/api/entries/[id].put')
     const result = await handler({
@@ -88,6 +91,7 @@ describe('/api/entries/[id] put handler', () => {
     })
 
     expect(isValidReviewMock).toHaveBeenCalledWith(enrichedReview)
+    expect(normalizeReviewForCompatibilityMock).toHaveBeenCalledWith(enrichedReview)
     expect(entry.review).toEqual(enrichedReview)
     expect(saveMock).toHaveBeenCalledOnce()
     expect(result).toEqual({

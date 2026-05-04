@@ -121,6 +121,7 @@ export function isValidReview(data: unknown): data is Review {
   if (!Array.isArray(review.corrections)) return false
   if (!review.stats || typeof review.stats !== 'object') return false
   if (!review.cefrLevel || typeof review.cefrLevel !== 'object') return false
+  if (!isNullish(review.reviewSchemaVersion) && review.reviewSchemaVersion !== 1 && review.reviewSchemaVersion !== 2) return false
 
   const stats = review.stats as Record<string, unknown>
   if (typeof stats.total_errors !== 'number') return false
@@ -213,14 +214,28 @@ function isValidDimensionScore(score: unknown): boolean {
 }
 
 function normalizeCorrection(correction: Review['corrections'][number]): Review['corrections'][number] {
+  const type = normalizeCorrectionTypeForPhase1(correction.type)
+
   return {
     original: correction.original,
     corrected: correction.corrected,
-    type: correction.type,
+    type,
     ...(typeof correction.tip === 'string' ? { tip: correction.tip } : {}),
     ...(typeof correction.reference_link === 'string' ? { reference_link: correction.reference_link } : {}),
     ...(Array.isArray(correction.tags) ? { tags: correction.tags } : {})
   }
+}
+
+function normalizeCorrectionTypeForPhase1(type: CorrectionType): CorrectionType {
+  if (type === 'idiomatic') {
+    return 'vocabulary'
+  }
+
+  if (type === 'register') {
+    return 'grammar'
+  }
+
+  return type
 }
 
 function getDerivedStatsFromCorrections(corrections: Review['corrections']) {
@@ -240,16 +255,16 @@ function getDerivedStatsFromCorrections(corrections: Review['corrections']) {
   return totals
 }
 
-function normalizeStats(review: Review): Review['stats'] {
-  const derived = getDerivedStatsFromCorrections(review.corrections)
+function normalizeStats(review: Review, normalizedCorrections: Review['corrections']): Review['stats'] {
+  const derived = getDerivedStatsFromCorrections(normalizedCorrections)
   const stats = review.stats
 
   const grammar = Math.max(stats.grammar, derived.grammar)
   const spelling = Math.max(stats.spelling, derived.spelling)
   const vocabulary = Math.max(stats.vocabulary, derived.vocabulary)
   const punctuation = Math.max(stats.punctuation ?? 0, derived.punctuation)
-  const idiomatic = Math.max(stats.idiomatic ?? 0, derived.idiomatic)
-  const register = Math.max(stats.register ?? 0, derived.register)
+  const idiomatic = 0
+  const register = 0
 
   const totalFromBuckets = grammar + spelling + vocabulary + punctuation + idiomatic + register
   const total_errors = Math.max(stats.total_errors, totalFromBuckets)
@@ -260,8 +275,8 @@ function normalizeStats(review: Review): Review['stats'] {
     spelling,
     vocabulary,
     ...(punctuation > 0 || stats.punctuation !== undefined ? { punctuation } : {}),
-    ...(idiomatic > 0 || stats.idiomatic !== undefined ? { idiomatic } : {}),
-    ...(register > 0 || stats.register !== undefined ? { register } : {}),
+    idiomatic,
+    register,
     ...(typeof stats.error_rate === 'number' ? { error_rate: stats.error_rate } : {})
   }
 }
@@ -301,12 +316,18 @@ function normalizeWritingFeedback(writing: Review['writing']): Review['writing']
 }
 
 export function normalizeReviewForCompatibility(review: Review): Review {
-  const normalizedStats = normalizeStats(review)
+  const normalizedCorrections = review.corrections.map(normalizeCorrection)
+  const normalizedStats = normalizeStats(review, normalizedCorrections)
+  const reviewSchemaVersion = review.reviewSchemaVersion === 1 || review.reviewSchemaVersion === 2
+    ? review.reviewSchemaVersion
+    : hasExtendedData(review)
+      ? 2
+      : 1
 
   return {
-    ...(review.reviewSchemaVersion ? { reviewSchemaVersion: review.reviewSchemaVersion } : { reviewSchemaVersion: hasExtendedData(review) ? 2 : 1 }),
+    reviewSchemaVersion,
     corrected_text: review.corrected_text,
-    corrections: review.corrections.map(normalizeCorrection),
+    corrections: normalizedCorrections,
     stats: normalizedStats,
     cefrLevel: review.cefrLevel,
     ...(review.writing ? { writing: normalizeWritingFeedback(review.writing) } : {})
@@ -347,7 +368,8 @@ export async function generateReview(text: string, options: GenerateReviewOption
       temperature: 0.2
     })
     rawContent = completion.choices[0]?.message?.content ?? null
-  } catch {
+  } catch (err) {
+    console.error('[review] OpenAI completion failed:', err)
     throw new ReviewError(503, 'AI review service is unavailable')
   }
 

@@ -1,9 +1,9 @@
 import crypto from 'node:crypto'
 import { JournalEntry } from '../models/JournalEntry'
 import {
+  createDayKeyGetter,
   datePartsToDayKey,
   getDatePartsInTimeZone,
-  getDayKeyInTimeZone,
   getStartOfDayUTCInTimeZoneFromParts,
   shiftDatePartsByDays
 } from './timezone'
@@ -30,7 +30,7 @@ interface SavedTip {
 
 interface LeanEntry {
   content: string
-  word_count: number
+  word_count?: number
   created_at: Date
   review?: {
     corrections: Array<{
@@ -108,6 +108,11 @@ function getNormalizedStats(entry: LeanEntry) {
   }
 }
 
+interface ReviewedEntryContext {
+  entry: LeanEntry
+  normalizedStats: ReturnType<typeof getNormalizedStats>
+}
+
 function getRangeStart(range: StatsRange, timeZone: string): Date | null {
   if (range === 'all') {
     return null
@@ -121,10 +126,11 @@ function getRangeStart(range: StatsRange, timeZone: string): Date | null {
 }
 
 function computeStreak(entries: LeanEntry[], timeZone: string): number {
+  const getDayKey = createDayKeyGetter(timeZone)
   const completedDayKeys = new Set(
     entries
       .filter((entry) => Boolean(entry.review))
-      .map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone))
+      .map((entry) => getDayKey(new Date(entry.created_at)))
   )
 
   if (completedDayKeys.size === 0) {
@@ -151,7 +157,7 @@ function calculateErrorRate(errors: number, wordCount: number): number {
   return Math.round((errors / wordCount) * 10000) / 100 // Per 100 words, rounded to 2 decimals
 }
 
-function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
+function computeImprovementRate(reviewedEntries: ReviewedEntryContext[]): number {
   if (reviewedEntries.length < 2) {
     return 0
   }
@@ -160,14 +166,17 @@ function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   const firstHalf = reviewedEntries.slice(0, splitIndex)
   const secondHalf = reviewedEntries.slice(splitIndex)
 
-  const firstAvg = firstHalf.reduce((acc, entry) => {
-    const errorRate = calculateErrorRate(getNormalizedStats(entry).total_errors, entry.word_count ?? 0)
-    return acc + errorRate
-  }, 0) / firstHalf.length
-  const secondAvg = secondHalf.reduce((acc, entry) => {
-    const errorRate = calculateErrorRate(getNormalizedStats(entry).total_errors, entry.word_count ?? 0)
-    return acc + errorRate
-  }, 0) / secondHalf.length
+  const sumReduce = (entries: ReviewedEntryContext[]) =>
+    entries.reduce((acc, entry) => {
+      acc.errors += entry.normalizedStats.total_errors
+      acc.words += entry.entry.word_count ?? 0
+      return acc
+    }, { errors: 0, words: 0 })
+
+  const firstSum = sumReduce(firstHalf)
+  const secondSum = sumReduce(secondHalf)
+  const firstAvg = calculateErrorRate(firstSum.errors, firstSum.words)
+  const secondAvg = calculateErrorRate(secondSum.errors, secondSum.words)
 
   if (firstAvg === 0) {
     return 0
@@ -176,13 +185,12 @@ function computeImprovementRate(reviewedEntries: LeanEntry[]): number {
   return Math.round(((firstAvg - secondAvg) / firstAvg) * 100)
 }
 
-function getMostCommonErrorType(reviewedEntries: LeanEntry[]): CorrectionType | 'none' {
+function getMostCommonErrorType(reviewedEntries: ReviewedEntryContext[]): CorrectionType | 'none' {
   const totals = createEmptyTypeTotals()
 
   for (const entry of reviewedEntries) {
-    const normalizedStats = getNormalizedStats(entry)
     for (const type of ALL_CORRECTION_TYPES) {
-      totals[type] += normalizedStats[type]
+      totals[type] += entry.normalizedStats[type]
     }
   }
 
@@ -202,21 +210,22 @@ function levelRank(level: string | undefined): number {
   return CEFR_ORDER.indexOf(level as CEFROrder)
 }
 
-function buildRecommendations(reviewedEntries: LeanEntry[]) {
+function buildRecommendations(reviewedEntries: ReviewedEntryContext[]) {
   const totals = {
     grammar: 0,
     spelling: 0,
-    vocabulary: 0
+    vocabulary: 0,
+    punctuation: 0
   }
 
   for (const entry of reviewedEntries) {
-    const normalizedStats = getNormalizedStats(entry)
-    totals.grammar += normalizedStats.grammar
-    totals.spelling += normalizedStats.spelling
-    totals.vocabulary += normalizedStats.vocabulary
+    totals.grammar += entry.normalizedStats.grammar
+    totals.spelling += entry.normalizedStats.spelling
+    totals.vocabulary += entry.normalizedStats.vocabulary
+    totals.punctuation += entry.normalizedStats.punctuation
   }
 
-  const recommendationMap: Record<'grammar' | 'spelling' | 'vocabulary', { area: string; suggestion: string; examples: string[]; resourceLink: string }> = {
+  const recommendationMap: Record<'grammar' | 'spelling' | 'vocabulary' | 'punctuation', { area: string; suggestion: string; examples: string[]; resourceLink: string }> = {
     grammar: {
       area: 'Grammar accuracy',
       suggestion: 'Practice tense agreement and article usage in short daily drills.',
@@ -234,10 +243,16 @@ function buildRecommendations(reviewedEntries: LeanEntry[]) {
       suggestion: 'Replace literal translations with common Italian collocations.',
       examples: ['fare una doccia', 'prendere una decisione'],
       resourceLink: 'https://context.reverso.net/translation/'
+    },
+    punctuation: {
+      area: 'Punctuation and spacing',
+      suggestion: 'Review comma spacing and sentence punctuation in short editing passes.',
+      examples: ['Ciao, come stai?', 'Ieri ho studiato, poi sono uscito.'],
+      resourceLink: 'https://www.treccani.it/enciclopedia/punteggiatura/'
     }
   }
 
-  return (Object.entries(totals) as Array<['grammar' | 'spelling' | 'vocabulary', number]>)
+  return (Object.entries(totals) as Array<['grammar' | 'spelling' | 'vocabulary' | 'punctuation', number]>)
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
@@ -269,30 +284,54 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
     .lean()) as LeanEntry[]
 
   const reviewedEntries = entries.filter((entry) => entry.review)
+  const getDayKey = createDayKeyGetter(timeZone)
+  const reviewedEntryContexts = reviewedEntries.map((entry) => ({
+    entry,
+    normalizedStats: getNormalizedStats(entry)
+  }))
   const savedTipIds = new Set(savedTips.map((tip) => tip.tipId))
 
-  const totalErrors = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).total_errors, 0)
-  const totalGrammar = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).grammar, 0)
-  const totalSpelling = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).spelling, 0)
-  const totalVocabulary = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).vocabulary, 0)
-  const totalPunctuation = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).punctuation, 0)
-  const totalIdiomatic = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).idiomatic, 0)
-  const totalRegister = reviewedEntries.reduce((acc, entry) => acc + getNormalizedStats(entry).register, 0)
-  const totalWordCount = reviewedEntries.reduce((acc, entry) => acc + (entry.word_count ?? 0), 0)
+  let totalErrors = 0
+  let totalGrammar = 0
+  let totalSpelling = 0
+  let totalVocabulary = 0
+  let totalPunctuation = 0
+  let totalIdiomatic = 0
+  let totalRegister = 0
+  let totalWordCount = 0
 
   const trendByDay = new Map<string, { errors: number; wordCount: number }>()
-  for (const entry of reviewedEntries) {
-    const day = getDayKeyInTimeZone(new Date(entry.created_at), timeZone)
-    const normalizedStats = getNormalizedStats(entry)
+  const tips = [] as Array<{
+    tipId: string
+    type: CorrectionType
+    tip: string
+    original: string
+    corrected: string
+    reference_link?: string
+    isSaved: boolean
+  }>
+  const cefrProgression = [] as Array<{ date: string; level: string; confidence: number }>
+
+  for (const context of reviewedEntryContexts) {
+    const { entry, normalizedStats } = context
+    const day = getDayKey(new Date(entry.created_at))
+
+    totalErrors += normalizedStats.total_errors
+    totalGrammar += normalizedStats.grammar
+    totalSpelling += normalizedStats.spelling
+    totalVocabulary += normalizedStats.vocabulary
+    totalPunctuation += normalizedStats.punctuation
+    totalIdiomatic += normalizedStats.idiomatic
+    totalRegister += normalizedStats.register
+    totalWordCount += entry.word_count ?? 0
+
     const current = trendByDay.get(day) ?? { errors: 0, wordCount: 0 }
     trendByDay.set(day, {
       errors: current.errors + normalizedStats.total_errors,
       wordCount: current.wordCount + (entry.word_count ?? 0)
     })
-  }
 
-  const tips = reviewedEntries.flatMap((entry) => {
-    return (entry.review?.corrections ?? [])
+    tips.push(...(entry.review?.corrections ?? [])
       .filter((correction) => correction.tip)
       .map((correction) => {
         const tipId = createTipId({
@@ -311,18 +350,18 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
           reference_link: correction.reference_link,
           isSaved: savedTipIds.has(tipId)
         }
+      }))
+
+    if (entry.review?.cefrLevel.estimated) {
+      cefrProgression.push({
+        date: day,
+        level: entry.review.cefrLevel.estimated,
+        confidence: entry.review.cefrLevel.confidence ?? 0
       })
-  })
+    }
+  }
 
   const uniqueTips = Array.from(new Map(tips.map((tip) => [tip.tipId, tip])).values())
-
-  const cefrProgression = reviewedEntries
-    .filter((entry) => entry.review?.cefrLevel.estimated)
-    .map((entry) => ({
-      date: getDayKeyInTimeZone(new Date(entry.created_at), timeZone),
-      level: entry.review?.cefrLevel.estimated ?? 'A1',
-      confidence: entry.review?.cefrLevel.confidence ?? 0
-    }))
 
   const latestLevel = cefrProgression.at(-1)?.level ?? 'A1'
   const priorLevel = cefrProgression.length > 1 ? (cefrProgression.at(-2)?.level ?? latestLevel) : latestLevel
@@ -333,12 +372,12 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
     hasEnoughData: reviewedEntries.length >= 3,
     summary: {
       entriesWritten: entries.length,
-      averageErrorRate: totalWordCount > 0 ? Math.round(calculateErrorRate(totalErrors, totalWordCount) * 100) / 100 : 0,
-      improvementRate: computeImprovementRate(reviewedEntries),
+      averageErrorRate: calculateErrorRate(totalErrors, totalWordCount),
+      improvementRate: computeImprovementRate(reviewedEntryContexts),
       currentStreak: computeStreak(entries, timeZone)
     },
     monthlySummary: {
-      mostCommonErrorType: getMostCommonErrorType(reviewedEntries),
+      mostCommonErrorType: getMostCommonErrorType(reviewedEntryContexts),
       cefrCurrent: latestLevel,
       cefrPrevious: priorLevel,
       cefrDelta: levelRank(latestLevel) - levelRank(priorLevel)
@@ -365,14 +404,14 @@ export async function getDashboardStats(userId: string, range: StatsRange, saved
       error_rate: calculateErrorRate(errors, wordCount)
     })),
     cefrProgression,
-    focusRecommendations: buildRecommendations(reviewedEntries),
+    focusRecommendations: buildRecommendations(reviewedEntryContexts),
     tips: uniqueTips,
     savedTips: savedTips.map((tip) => ({
       ...tip,
       savedAt: tip.savedAt.toISOString()
     })),
     consistency: {
-      datesWithEntries: Array.from(new Set(entries.map((entry) => getDayKeyInTimeZone(new Date(entry.created_at), timeZone)))).sort()
+      datesWithEntries: Array.from(new Set(entries.map((entry) => getDayKey(new Date(entry.created_at))))).sort()
     }
   }
 }

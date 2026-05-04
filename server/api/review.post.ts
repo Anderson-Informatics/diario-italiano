@@ -13,7 +13,13 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event)
   const text: unknown = body?.text
-  const learnerPhase = isWritingReviewPhase(body?.learnerPhase) ? body.learnerPhase : undefined
+  const requestedLearnerPhase: unknown = body?.learnerPhase
+
+  if (requestedLearnerPhase !== undefined && !isWritingReviewPhase(requestedLearnerPhase)) {
+    throw createError({ statusCode: 400, message: 'learnerPhase is invalid' })
+  }
+
+  const learnerPhase = requestedLearnerPhase
 
   const config = useRuntimeConfig()
 

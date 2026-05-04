@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest'
 import mongoose from 'mongoose'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 import { JournalEntry } from '../../../server/models/JournalEntry'
@@ -7,6 +7,7 @@ import { buildTipIdForSave, getDashboardStats } from '../../../server/utils/stat
 
 let mongoServer: MongoMemoryServer
 let testUserId: mongoose.Types.ObjectId
+const FIXED_NOW = new Date('2026-05-04T12:00:00.000Z')
 
 describe('Stats aggregation integration tests', () => {
   function getUtcNoonWithDayOffset(offsetDays: number): Date {
@@ -60,6 +61,12 @@ describe('Stats aggregation integration tests', () => {
 
   afterEach(async () => {
     await JournalEntry.deleteMany({})
+    vi.useRealTimers()
+  })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(FIXED_NOW)
   })
 
   afterAll(async () => {
@@ -191,8 +198,113 @@ describe('Stats aggregation integration tests', () => {
     expect(stats.errorDistribution.vocabulary).toBe(1)
     expect(stats.errorDistribution.punctuation).toBe(1)
     expect(stats.errorDistribution.total).toBe(4)
+    // Rate fields — 4 errors across entries; word counts set by pre-save hook
+    expect(stats.summary.averageErrorRate).toBeGreaterThan(0)
+    expect(typeof stats.summary.averageErrorRate).toBe('number')
+    expect(stats.errorDistribution.grammarRate).toBeGreaterThan(0)
+    expect(stats.errorDistribution.grammarRate).toBeLessThanOrEqual(stats.errorDistribution.averageRate)
+    expect(stats.errorDistribution.spellingRate).toBe(0)
+    expect(stats.errorDistribution.vocabularyRate).toBeGreaterThan(0)
+    expect(stats.errorDistribution.averageRate).toBe(stats.summary.averageErrorRate)
+    // Trend rows should each carry an error_rate
+    if (stats.errorTrend.length > 0) {
+      expect(typeof stats.errorTrend[0].error_rate).toBe('number')
+      expect(stats.errorTrend[0].error_rate).toBeGreaterThanOrEqual(0)
+    }
     expect(stats.tips.some((tip) => tip.tip === tipText && tip.isSaved)).toBe(true)
     expect(stats.savedTips).toHaveLength(1)
+  })
+
+  it('returns punctuation focus recommendations for punctuation-only reviewed entries', async () => {
+    await JournalEntry.create([
+      {
+        userId: testUserId,
+        content: 'Ciao,come stai?',
+        review: {
+          corrected_text: 'Ciao, come stai?',
+          corrections: [
+            {
+              original: 'Ciao,come',
+              corrected: 'Ciao, come',
+              type: 'punctuation',
+              tip: 'Add a space after commas.'
+            }
+          ],
+          stats: {
+            total_errors: 1,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0,
+            punctuation: 1
+          },
+          cefrLevel: {
+            estimated: 'A2',
+            confidence: 79,
+            recommendations: []
+          }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Ciao!Come va?',
+        review: {
+          corrected_text: 'Ciao! Come va?',
+          corrections: [
+            {
+              original: '!Come',
+              corrected: '! Come',
+              type: 'punctuation',
+              tip: 'Add a space after punctuation when needed.'
+            }
+          ],
+          stats: {
+            total_errors: 1,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0,
+            punctuation: 1
+          },
+          cefrLevel: {
+            estimated: 'A2',
+            confidence: 79,
+            recommendations: []
+          }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Bene,grazie.',
+        review: {
+          corrected_text: 'Bene, grazie.',
+          corrections: [
+            {
+              original: 'Bene,grazie',
+              corrected: 'Bene, grazie',
+              type: 'punctuation',
+              tip: 'Use a space after commas.'
+            }
+          ],
+          stats: {
+            total_errors: 1,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0,
+            punctuation: 1
+          },
+          cefrLevel: {
+            estimated: 'A2',
+            confidence: 79,
+            recommendations: []
+          }
+        }
+      }
+    ])
+
+    const user = await User.findById(testUserId).select('savedTips').lean()
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
+
+    expect(stats.hasEnoughData).toBe(true)
+    expect(stats.focusRecommendations.some((recommendation) => recommendation.area === 'Punctuation and spacing')).toBe(true)
   })
 
   it('counts today in current streak only when today entry is complete', async () => {
@@ -293,6 +405,57 @@ describe('Stats aggregation integration tests', () => {
     ])
 
     await setEntryCreatedAt(todayIncompleteEntry._id, getUtcNoonWithDayOffset(0))
+    await setEntryCreatedAt(yesterdayCompleteEntry._id, getUtcNoonWithDayOffset(-1))
+    await setEntryCreatedAt(twoDaysAgoCompleteEntry._id, getUtcNoonWithDayOffset(-2))
+
+    const user = await User.findById(testUserId).select('savedTips').lean()
+    const stats = await getDashboardStats(String(testUserId), 'all', user?.savedTips ?? [], 'UTC')
+
+    expect(stats.summary.currentStreak).toBe(2)
+  })
+
+  it('starts streak from yesterday when there is no entry today', async () => {
+    const [yesterdayCompleteEntry, twoDaysAgoCompleteEntry] = await JournalEntry.create([
+      {
+        userId: testUserId,
+        content: 'Yesterday complete',
+        review: {
+          corrected_text: 'Yesterday complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      },
+      {
+        userId: testUserId,
+        content: 'Two days ago complete',
+        review: {
+          corrected_text: 'Two days ago complete',
+          corrections: [],
+          stats: {
+            total_errors: 0,
+            grammar: 0,
+            spelling: 0,
+            vocabulary: 0
+          },
+          cefrLevel: {
+            estimated: 'A1',
+            confidence: 80,
+            recommendations: []
+          }
+        }
+      }
+    ])
+
     await setEntryCreatedAt(yesterdayCompleteEntry._id, getUtcNoonWithDayOffset(-1))
     await setEntryCreatedAt(twoDaysAgoCompleteEntry._id, getUtcNoonWithDayOffset(-2))
 

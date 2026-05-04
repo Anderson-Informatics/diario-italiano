@@ -71,8 +71,8 @@
         <div>
           <FocusAreas
             :focus-areas="focusAreas"
-            :cefr-level="review?.cefrLevel.estimated ?? cefrLevel"
-            :confidence="review?.cefrLevel.confidence ?? confidence"
+            :cefr-level="cefrLevel"
+            :confidence="confidence"
             :focus-period-label="focusPeriodLabel"
           />
         </div>
@@ -109,6 +109,7 @@ const hasSubmittedEntry = ref(false);
 const editingEntryId = ref<string | null>(null);
 const lastSubmittedText = ref("");
 const distractionFreeDismissed = ref(false);
+const hasCompletedTodayEntryFromPageOne = ref(false);
 
 const {
   review,
@@ -168,6 +169,10 @@ const focusAreaColors: ReadonlyArray<FocusArea["color"]> = [
 ];
 
 const focusAreas = computed<FocusArea[]>(() => {
+  if (!dashboardStats.value?.hasEnoughData) {
+    return [];
+  }
+
   const recommendations = dashboardStats.value?.focusRecommendations ?? [];
   const topRecommendations = recommendations.slice(0, 3);
 
@@ -259,13 +264,7 @@ const activeReviewPreferenceHint = computed(() => {
 });
 
 const hasCompletedTodayEntry = computed(() => {
-  const todayKey = getTodayKeyInTimeZone(userTimezone.value);
-
-  return entries.value.some(
-    (entry) =>
-      getDayKeyInTimeZone(new Date(entry.created_at), userTimezone.value) ===
-      todayKey,
-  );
+  return hasCompletedTodayEntryFromPageOne.value;
 });
 
 const isDistractionFreeActive = computed(() => {
@@ -278,6 +277,7 @@ const disableDistractionFreeMode = () => {
 
 const loadEntries = async (page = currentPage.value) => {
   entriesLoading.value = true;
+  const requestedPage = page;
   try {
     const data = await useAuthenticatedFetch<EntriesResponse>("/api/entries", {
       query: {
@@ -290,6 +290,15 @@ const loadEntries = async (page = currentPage.value) => {
       hasSubmittedEntry.value || data.entries.length > 0;
     currentPage.value = data.pagination.page;
     totalPages.value = data.pagination.totalPages;
+
+    if (requestedPage === 1) {
+      const todayKey = getTodayKeyInTimeZone(userTimezone.value);
+      hasCompletedTodayEntryFromPageOne.value = data.entries.some(
+        (entry) =>
+          getDayKeyInTimeZone(new Date(entry.created_at), userTimezone.value) ===
+          todayKey,
+      );
+    }
   } catch (error) {
     console.error("Failed to load entries:", error);
   } finally {

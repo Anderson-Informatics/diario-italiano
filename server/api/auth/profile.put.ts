@@ -1,7 +1,8 @@
 import { User } from '../../models/User'
 import { isValidTimeZone } from '../../utils/timezone'
+import type { WritingReviewPhase } from '../../../app/types/index'
 
-function isWritingReviewPhase(value: unknown): value is 'A1-A2' | 'B1-B2' | 'C1-C2' {
+function isWritingReviewPhase(value: unknown): value is WritingReviewPhase {
   return value === 'A1-A2' || value === 'B1-B2' || value === 'C1-C2'
 }
 

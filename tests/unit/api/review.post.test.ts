@@ -80,6 +80,17 @@ describe('/api/review handler', () => {
     })
   })
 
+  it('rejects invalid learner phase', async () => {
+    const { default: handler } = await import('../../../server/api/review.post')
+
+    await expect(
+      handler({ context: { userId: '123' }, body: { text: 'Ciao', learnerPhase: 'Z9' } })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'learnerPhase is invalid'
+    })
+  })
+
   it('maps ReviewError to h3 errors', async () => {
     const { ReviewError } = await import('../../../server/utils/review')
     generateReviewMock.mockRejectedValue(new ReviewError(503, 'AI review service is unavailable'))
