@@ -15,13 +15,17 @@
       <div v-else-if="resolvedUser" class="space-y-5">
         <dl class="space-y-4">
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <dt
+              class="text-xs font-medium uppercase tracking-wide text-gray-500"
+            >
               Username
             </dt>
             <dd class="text-base text-gray-900">{{ resolvedUser.username }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">
+            <dt
+              class="text-xs font-medium uppercase tracking-wide text-gray-500"
+            >
               Email
             </dt>
             <dd class="text-base text-gray-900">{{ resolvedUser.email }}</dd>
@@ -36,7 +40,8 @@
             Timezone
           </label>
           <p class="text-sm text-gray-500 mt-1">
-            Date-based features, including streaks and calendar days, use this timezone.
+            Date-based features, including streaks and calendar days, use this
+            timezone.
           </p>
           <div class="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
             <select
@@ -50,24 +55,33 @@
             </select>
             <button
               class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              :disabled="isSavingTimezone || selectedTimezone === resolvedUser.timezone"
+              :disabled="
+                isSavingTimezone || selectedTimezone === resolvedUser.timezone
+              "
               @click="saveTimezone"
             >
               {{ isSavingTimezone ? "Saving..." : "Save timezone" }}
             </button>
           </div>
-          <p v-if="timezoneSuccess" class="mt-2 text-sm text-green-700">{{ timezoneSuccess }}</p>
-          <p v-if="timezoneError" class="mt-2 text-sm text-red-600">{{ timezoneError }}</p>
+          <p v-if="timezoneSuccess" class="mt-2 text-sm text-green-700">
+            {{ timezoneSuccess }}
+          </p>
+          <p v-if="timezoneError" class="mt-2 text-sm text-red-600">
+            {{ timezoneError }}
+          </p>
         </div>
 
         <div class="border-t border-gray-100 pt-5">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <label class="block text-xs font-medium uppercase tracking-wide text-gray-500">
+              <label
+                class="block text-xs font-medium uppercase tracking-wide text-gray-500"
+              >
                 Review Level Preference
               </label>
               <p class="text-sm text-gray-500 mt-1">
-                Use your chosen learner phase for AI writing reviews instead of inferring it from past entries.
+                Use your chosen learner phase for AI writing reviews instead of
+                inferring it from past entries.
               </p>
             </div>
             <label class="inline-flex items-center gap-2 text-sm text-gray-700">
@@ -75,7 +89,7 @@
                 v-model="useTargetReviewPhase"
                 type="checkbox"
                 class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              >
+              />
               Use fixed review level
             </label>
           </div>
@@ -99,11 +113,19 @@
               :disabled="isSavingReviewPreferences"
               @click="saveReviewPreferences"
             >
-              {{ isSavingReviewPreferences ? "Saving..." : "Save review preference" }}
+              {{
+                isSavingReviewPreferences
+                  ? "Saving..."
+                  : "Save review preference"
+              }}
             </button>
           </div>
-          <p v-if="reviewPreferenceSuccess" class="mt-2 text-sm text-green-700">{{ reviewPreferenceSuccess }}</p>
-          <p v-if="reviewPreferenceError" class="mt-2 text-sm text-red-600">{{ reviewPreferenceError }}</p>
+          <p v-if="reviewPreferenceSuccess" class="mt-2 text-sm text-green-700">
+            {{ reviewPreferenceSuccess }}
+          </p>
+          <p v-if="reviewPreferenceError" class="mt-2 text-sm text-red-600">
+            {{ reviewPreferenceError }}
+          </p>
         </div>
       </div>
 
@@ -178,10 +200,12 @@ const reviewPreferenceError = ref("");
 onMounted(() => {
   const currentZone = resolvedUser.value?.timezone || "UTC";
   selectedTimezone.value = currentZone;
-  useTargetReviewPhase.value = Boolean(resolvedUser.value?.useTargetReviewPhase);
+  useTargetReviewPhase.value = Boolean(
+    resolvedUser.value?.useTargetReviewPhase,
+  );
   selectedReviewPhase.value = resolvedUser.value?.targetReviewPhase || "B1-B2";
 
-  const intlWithSupported = Intl as Intl.DateTimeFormat & {
+  const intlWithSupported = Intl as unknown as {
     supportedValuesOf?: (key: string) => string[];
   };
 
