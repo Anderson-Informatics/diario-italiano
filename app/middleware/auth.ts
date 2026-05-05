@@ -5,11 +5,12 @@ export default defineNuxtRouteMiddleware((to, from) => {
 
   const authStore = useAuthStore()
 
-  if (!authStore.user) {
+  if (!authStore.user || !authStore.token) {
     authStore.loadFromStorage()
   }
-  
-  if (!authStore.user) {
+
+  if (!authStore.user || !authStore.token) {
+    authStore.logout()
     return navigateTo('/login')
   }
 })
