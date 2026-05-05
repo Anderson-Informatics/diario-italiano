@@ -8,7 +8,7 @@ function isWritingReviewPhase(value: unknown): value is WritingReviewPhase {
 export default defineEventHandler(async (event) => {
   const userId = event.context.userId
   if (!userId) {
-    throw createError({ statusCode: 401, message: 'Unauthorized' })
+    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
   }
 
   const body = await readBody(event)
@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const requestedLearnerPhase: unknown = body?.learnerPhase
 
   if (requestedLearnerPhase !== undefined && !isWritingReviewPhase(requestedLearnerPhase)) {
-    throw createError({ statusCode: 400, message: 'learnerPhase is invalid' })
+    throw createError({ statusCode: 400, statusMessage: 'learnerPhase is invalid' })
   }
 
   const learnerPhase = requestedLearnerPhase
@@ -31,9 +31,17 @@ export default defineEventHandler(async (event) => {
     })
   } catch (error) {
     if (error instanceof ReviewError) {
-      throw createError({ statusCode: error.statusCode, message: error.message })
+      throw createError({
+        statusCode: error.statusCode,
+        statusMessage: error.message,
+        data: { message: error.message }
+      })
     }
 
-    throw createError({ statusCode: 500, message: 'Unexpected review service error' })
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Unexpected review service error',
+      data: { message: 'Unexpected review service error' }
+    })
   }
 })

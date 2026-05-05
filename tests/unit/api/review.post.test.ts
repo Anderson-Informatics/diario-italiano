@@ -18,8 +18,14 @@ vi.mock('../../../server/utils/review', () => {
   }
 })
 
-const createErrorMock = vi.fn((input: { statusCode: number; message: string }) =>
-  Object.assign(new Error(input.message), input)
+const createErrorMock = vi.fn(
+  (input: { statusCode: number; message?: string; statusMessage?: string; data?: { message?: string } }) => {
+    const resolvedMessage = input.message ?? input.statusMessage ?? 'Unknown error'
+    return Object.assign(new Error(resolvedMessage), {
+      ...input,
+      message: resolvedMessage
+    })
+  }
 )
 
 beforeEach(() => {

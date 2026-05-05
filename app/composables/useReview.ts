@@ -9,6 +9,28 @@ export function useReview() {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
+  function getReviewErrorMessage(err: unknown): string {
+    const fallback = 'Review failed. Please try again.'
+
+    if (!err || typeof err !== 'object') {
+      return fallback
+    }
+
+    const payload = err as {
+      data?: { message?: string; statusMessage?: string }
+      statusMessage?: string
+      message?: string
+    }
+
+    return (
+      payload.data?.message ??
+      payload.data?.statusMessage ??
+      payload.statusMessage ??
+      payload.message ??
+      fallback
+    )
+  }
+
   async function requestReview(text: string, options: RequestReviewOptions = {}): Promise<Review | null> {
     isLoading.value = true
     error.value = null
@@ -25,11 +47,7 @@ export function useReview() {
       review.value = data
       return data
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'data' in err
-          ? ((err as { data?: { message?: string } }).data?.message ?? 'Review failed. Please try again.')
-          : 'Review failed. Please try again.'
-      error.value = message
+      error.value = getReviewErrorMessage(err)
       return null
     } finally {
       isLoading.value = false
