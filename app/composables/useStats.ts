@@ -11,7 +11,8 @@ export function useStats() {
       query: { range: range.value }
     }),
     {
-      watch: [range]
+      watch: [range],
+      server: false
     }
   )
 
