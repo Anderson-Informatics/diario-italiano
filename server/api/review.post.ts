@@ -9,6 +9,13 @@ export default defineEventHandler(async (event) => {
   const path = typeof getRequestURL === 'function' ? getRequestURL(event).pathname : '/api/review'
   const method = event.method || 'POST'
   const userId = event.context.userId
+
+  console.info('[review] Request received', {
+    method,
+    path,
+    hasUserId: Boolean(userId)
+  })
+
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
   }
