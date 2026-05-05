@@ -1,12 +1,11 @@
 import jwt from 'jsonwebtoken'
 import { User } from '../models/User'
 
-const config = useRuntimeConfig()
-
 // Public API routes that don't require authentication
 const PUBLIC_API_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/auth/verify']
 
 export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig(event)
   const path = getRequestURL(event).pathname
   
   // Skip auth for public API routes
@@ -28,12 +27,12 @@ export default defineEventHandler(async (event) => {
     } catch {
       // Invalid token - only reject for protected API routes
       if (isProtectedApiRoute) {
-        throw createError({ statusCode: 401, message: 'Invalid token' })
+        throw createError({ statusCode: 401, statusMessage: 'Invalid token', message: 'Invalid token' })
       }
     }
   } else if (isProtectedApiRoute) {
     // No token provided for protected API route
-    throw createError({ statusCode: 401, message: 'Authentication required' })
+    throw createError({ statusCode: 401, statusMessage: 'Authentication required', message: 'Authentication required' })
   }
   
   // For non-API routes (pages) and public API routes, no auth required
