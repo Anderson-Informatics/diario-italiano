@@ -6,6 +6,8 @@ function isWritingReviewPhase(value: unknown): value is WritingReviewPhase {
 }
 
 export default defineEventHandler(async (event) => {
+  const path = typeof getRequestURL === 'function' ? getRequestURL(event).pathname : '/api/review'
+  const method = event.method || 'POST'
   const userId = event.context.userId
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
@@ -30,13 +32,31 @@ export default defineEventHandler(async (event) => {
       learnerPhase
     })
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+
     if (error instanceof ReviewError) {
+      console.error('[review] ReviewError response', {
+        method,
+        path,
+        userId,
+        statusCode: error.statusCode,
+        message
+      })
+
       throw createError({
         statusCode: error.statusCode,
         statusMessage: error.message,
         data: { message: error.message }
       })
     }
+
+    console.error('[review] Unexpected review handler error', {
+      method,
+      path,
+      userId,
+      message,
+      error
+    })
 
     throw createError({
       statusCode: 500,

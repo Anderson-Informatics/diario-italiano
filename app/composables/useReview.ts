@@ -11,6 +11,7 @@ export function useReview() {
 
   function getReviewErrorMessage(err: unknown): string {
     const fallback = 'Review failed. Please try again.'
+    const networkFallback = 'Could not reach the review server. Check server logs and try again.'
 
     if (!err || typeof err !== 'object') {
       return fallback
@@ -25,6 +26,7 @@ export function useReview() {
     return (
       payload.data?.message ??
       payload.data?.statusMessage ??
+      (payload.message === 'Failed to fetch' ? networkFallback : undefined) ??
       payload.statusMessage ??
       payload.message ??
       fallback

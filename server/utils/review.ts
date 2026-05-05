@@ -374,17 +374,25 @@ export async function generateReview(text: string, options: GenerateReviewOption
   }
 
   if (!rawContent) {
+    console.error('[review] OpenAI response did not include message content')
     throw new ReviewError(502, 'AI service returned an empty response')
   }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(rawContent)
-  } catch {
+  } catch (err) {
+    console.error('[review] Failed to parse OpenAI response JSON', {
+      error: err,
+      rawContentPreview: rawContent.slice(0, 500)
+    })
     throw new ReviewError(502, 'AI service returned an invalid response')
   }
 
   if (!isValidReview(parsed)) {
+    console.error('[review] OpenAI response failed review schema validation', {
+      parsed
+    })
     throw new ReviewError(502, 'AI service returned an unexpected response structure')
   }
 

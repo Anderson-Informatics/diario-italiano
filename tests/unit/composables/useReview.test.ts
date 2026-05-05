@@ -83,6 +83,17 @@ describe('useReview', () => {
     expect(error.value).toBe('Unauthorized')
   })
 
+  it('shows a server reachability message for failed fetch errors', async () => {
+    authenticatedFetchMock.mockRejectedValue({ message: 'Failed to fetch' })
+
+    const { useReview } = await import('../../../app/composables/useReview')
+    const { error, requestReview } = useReview()
+
+    await requestReview('Ciao')
+
+    expect(error.value).toBe('Could not reach the review server. Check server logs and try again.')
+  })
+
   it('clearReview resets review and error state', async () => {
     authenticatedFetchMock.mockResolvedValue({
       corrected_text: 'Ciao',
