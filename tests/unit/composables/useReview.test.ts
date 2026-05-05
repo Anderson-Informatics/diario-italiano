@@ -72,6 +72,17 @@ describe('useReview', () => {
     expect(isLoading.value).toBe(false)
   })
 
+  it('falls back to status message fields on failure', async () => {
+    authenticatedFetchMock.mockRejectedValue({ data: { statusMessage: 'Unauthorized' } })
+
+    const { useReview } = await import('../../../app/composables/useReview')
+    const { error, requestReview } = useReview()
+
+    await requestReview('Ciao')
+
+    expect(error.value).toBe('Unauthorized')
+  })
+
   it('clearReview resets review and error state', async () => {
     authenticatedFetchMock.mockResolvedValue({
       corrected_text: 'Ciao',
