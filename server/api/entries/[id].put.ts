@@ -23,6 +23,10 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { content, review } = body
 
+  if (content !== undefined && entry.review) {
+    throw createError({ statusCode: 403, message: 'Entry is locked after review and cannot be edited' })
+  }
+
   if (content !== undefined) {
     entry.content = content
     entry.word_count = countWords(content)

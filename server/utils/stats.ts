@@ -162,27 +162,40 @@ function computeImprovementRate(reviewedEntries: ReviewedEntryContext[]): number
     return 0
   }
 
-  const splitIndex = Math.floor(reviewedEntries.length / 2)
-  const firstHalf = reviewedEntries.slice(0, splitIndex)
-  const secondHalf = reviewedEntries.slice(splitIndex)
+  // Build per-entry error rates (y) indexed chronologically (x = 0, 1, 2, ...)
+  const rates = reviewedEntries.map((context) =>
+    calculateErrorRate(context.normalizedStats.total_errors, context.entry.word_count ?? 0)
+  )
 
-  const sumReduce = (entries: ReviewedEntryContext[]) =>
-    entries.reduce((acc, entry) => {
-      acc.errors += entry.normalizedStats.total_errors
-      acc.words += entry.entry.word_count ?? 0
-      return acc
-    }, { errors: 0, words: 0 })
+  const n = rates.length
+  const meanY = rates.reduce((sum, r) => sum + r, 0) / n
 
-  const firstSum = sumReduce(firstHalf)
-  const secondSum = sumReduce(secondHalf)
-  const firstAvg = calculateErrorRate(firstSum.errors, firstSum.words)
-  const secondAvg = calculateErrorRate(secondSum.errors, secondSum.words)
-
-  if (firstAvg === 0) {
+  if (meanY === 0) {
     return 0
   }
 
-  return Math.round(((firstAvg - secondAvg) / firstAvg) * 100)
+  // OLS slope: β = (n·Σxy − Σx·Σy) / (n·Σx² − (Σx)²)
+  let sumX = 0
+  let sumY = 0
+  let sumXY = 0
+  let sumX2 = 0
+
+  for (let i = 0; i < n; i++) {
+    sumX += i
+    sumY += rates[i]
+    sumXY += i * rates[i]
+    sumX2 += i * i
+  }
+
+  const denom = n * sumX2 - sumX * sumX
+  if (denom === 0) {
+    return 0
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / denom
+
+  // Negative slope = improving. Scale relative to mean rate so the result is a percentage.
+  return Math.round((-slope / meanY) * 100)
 }
 
 function getMostCommonErrorType(reviewedEntries: ReviewedEntryContext[]): CorrectionType | 'none' {
