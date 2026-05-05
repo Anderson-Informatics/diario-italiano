@@ -5,6 +5,7 @@
       :disabled="isSubmitting"
       :loading="isSubmitting"
       :entry-id="editingEntryId"
+      :locked="isEntryLocked"
       @submit="handleSubmit"
       @cancel="cancelEdit"
     />
@@ -107,6 +108,7 @@ const isSubmitting = ref(false);
 const showReview = ref(false);
 const hasSubmittedEntry = ref(false);
 const editingEntryId = ref<string | null>(null);
+const isEntryLocked = ref(false);
 const lastSubmittedText = ref("");
 const distractionFreeDismissed = ref(false);
 const hasCompletedTodayEntryFromPageOne = ref(false);
@@ -341,19 +343,27 @@ const loadCalendarDates = async (year: number, month: number) => {
 
 const loadEntry = (entry: Entry) => {
   journalContent.value = entry.content;
-  editingEntryId.value = entry.id;
   lastSubmittedText.value = entry.content;
   clearReview();
-  showReview.value = Boolean(entry.review);
 
   if (entry.review) {
+    // Entry has been reviewed — lock it, show it read-only with existing review
+    editingEntryId.value = entry.id;
+    isEntryLocked.value = true;
     review.value = entry.review;
+    showReview.value = true;
+  } else {
+    // No review yet (e.g. AI error) — allow editing and re-submitting
+    editingEntryId.value = entry.id;
+    isEntryLocked.value = false;
+    showReview.value = false;
   }
 };
 
 const cancelEdit = () => {
   journalContent.value = "";
   editingEntryId.value = null;
+  isEntryLocked.value = false;
   clearReview();
   showReview.value = false;
 };
@@ -391,6 +401,7 @@ const handleSubmit = async (content: string, entryId?: string) => {
     hasSubmittedEntry.value = true;
     journalContent.value = "";
     editingEntryId.value = null;
+    isEntryLocked.value = false;
     showReview.value = true;
   } catch (error) {
     console.error("Failed to save entry:", error);
