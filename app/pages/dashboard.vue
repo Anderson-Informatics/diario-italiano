@@ -4,15 +4,16 @@
       v-model="journalContent"
       :disabled="isSubmitting"
       :loading="isSubmitting"
+      :save-loading="isSavingDraft"
+      :save-status="draftSaveStatus"
+      :save-error="draftSaveError"
       :entry-id="editingEntryId"
       :locked="isEntryLocked"
+      @save="handleSave"
       @submit="handleSubmit"
       @cancel="cancelEdit"
     />
-    <div
-      v-if="isDistractionFreeActive"
-      class="flex justify-center"
-    >
+    <div v-if="isDistractionFreeActive" class="flex justify-center">
       <button
         class="rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
         @click="disableDistractionFreeMode"
@@ -105,13 +106,25 @@ const userTimezone = computed(() => authStore.user?.timezone || "UTC");
 
 const journalContent = ref("");
 const isSubmitting = ref(false);
+const isSavingDraft = ref(false);
 const showReview = ref(false);
 const hasSubmittedEntry = ref(false);
 const editingEntryId = ref<string | null>(null);
 const isEntryLocked = ref(false);
 const lastSubmittedText = ref("");
+const lastPersistedContent = ref("");
+const lastDraftSavedAt = ref<string | null>(null);
+const draftSaveError = ref<string | null>(null);
 const distractionFreeDismissed = ref(false);
 const hasCompletedTodayEntryFromPageOne = ref(false);
+const shouldResumeLatestDraft = ref(true);
+
+type DraftSaveSource = "auto" | "manual";
+
+interface DraftSaveRequest {
+  content: string;
+  source: DraftSaveSource;
+}
 
 const {
   review,
@@ -145,6 +158,7 @@ const entriesLoading = ref(false);
 const currentPage = ref(1);
 const totalPages = ref(1);
 const PAGE_SIZE = 10;
+const AUTOSAVE_DELAY_MS = 5000;
 
 const initialMonth = getCurrentYearMonthInTimeZone(userTimezone.value);
 const calendarEntryDays = ref<Record<string, CalendarEntryMeta>>({});
@@ -229,23 +243,26 @@ const focusPeriodLabel = computed(() => {
 });
 
 const cefrToWritingPhase = (level?: string): WritingReviewPhase | undefined => {
-  if (level === 'A1' || level === 'A2') {
-    return 'A1-A2';
+  if (level === "A1" || level === "A2") {
+    return "A1-A2";
   }
 
-  if (level === 'B1' || level === 'B2') {
-    return 'B1-B2';
+  if (level === "B1" || level === "B2") {
+    return "B1-B2";
   }
 
-  if (level === 'C1' || level === 'C2') {
-    return 'C1-C2';
+  if (level === "C1" || level === "C2") {
+    return "C1-C2";
   }
 
   return undefined;
 };
 
 const getLearnerPhaseForReview = (): WritingReviewPhase | undefined => {
-  if (authStore.user?.useTargetReviewPhase && authStore.user.targetReviewPhase) {
+  if (
+    authStore.user?.useTargetReviewPhase &&
+    authStore.user.targetReviewPhase
+  ) {
     return authStore.user.targetReviewPhase;
   }
 
@@ -253,16 +270,44 @@ const getLearnerPhaseForReview = (): WritingReviewPhase | undefined => {
     return review.value.writing.phase;
   }
 
-  const reviewedEntry = entries.value.find((entry) => entry.review?.cefrLevel.estimated);
+  const reviewedEntry = entries.value.find(
+    (entry) => entry.review?.cefrLevel.estimated,
+  );
   return cefrToWritingPhase(reviewedEntry?.review?.cefrLevel.estimated);
 };
 
 const activeReviewPreferenceHint = computed(() => {
-  if (!authStore.user?.useTargetReviewPhase || !authStore.user.targetReviewPhase) {
+  if (
+    !authStore.user?.useTargetReviewPhase ||
+    !authStore.user.targetReviewPhase
+  ) {
     return "";
   }
 
   return `AI reviews are using your fixed learner phase: ${authStore.user.targetReviewPhase}. You can change this in Profile & Settings.`;
+});
+
+const draftSaveStatus = computed(() => {
+  if (draftSaveError.value) {
+    return "";
+  }
+
+  if (isSavingDraft.value) {
+    return "Saving draft...";
+  }
+
+  if (
+    journalContent.value.trim() &&
+    journalContent.value !== lastPersistedContent.value
+  ) {
+    return "Unsaved changes";
+  }
+
+  if (lastDraftSavedAt.value && editingEntryId.value) {
+    return `Draft saved at ${formatDraftSaveTime(lastDraftSavedAt.value)}`;
+  }
+
+  return "";
 });
 
 const hasCompletedTodayEntry = computed(() => {
@@ -275,6 +320,120 @@ const isDistractionFreeActive = computed(() => {
 
 const disableDistractionFreeMode = () => {
   distractionFreeDismissed.value = true;
+};
+
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let queuedDraftSave: DraftSaveRequest | null = null;
+let activeDraftSavePromise: Promise<Entry | null> | null = null;
+
+const clearAutosaveTimer = () => {
+  if (autosaveTimer) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+};
+
+const formatDraftSaveTime = (value: string) => {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const refreshEntriesAndCalendar = async () => {
+  await Promise.all([
+    loadEntries(currentPage.value),
+    loadCalendarDates(calendarMonth.value.year, calendarMonth.value.month),
+  ]);
+};
+
+const saveDraftToServer = async (content: string): Promise<Entry | null> => {
+  const trimmedContent = content.trim();
+
+  if (!trimmedContent || isEntryLocked.value) {
+    return null;
+  }
+
+  isSavingDraft.value = true;
+  draftSaveError.value = null;
+
+  try {
+    const savedEntry = editingEntryId.value
+      ? await useAuthenticatedFetch<Entry>(
+          `/api/entries/${editingEntryId.value}`,
+          {
+            method: "PUT",
+            body: { content },
+          },
+        )
+      : await useAuthenticatedFetch<Entry>("/api/entries", {
+          method: "POST",
+          body: { content },
+        });
+
+    editingEntryId.value = savedEntry.id;
+    lastPersistedContent.value = savedEntry.content;
+    lastDraftSavedAt.value = savedEntry.updated_at;
+    hasSubmittedEntry.value = true;
+
+    await refreshEntriesAndCalendar();
+
+    return savedEntry;
+  } catch (error) {
+    draftSaveError.value = "Draft could not be saved. Try again.";
+    console.error("Failed to save draft:", error);
+    return null;
+  } finally {
+    isSavingDraft.value = false;
+  }
+};
+
+const drainDraftSaveQueue = async (
+  initialRequest: DraftSaveRequest,
+): Promise<Entry | null> => {
+  let request: DraftSaveRequest | null = initialRequest;
+  let lastResult: Entry | null = null;
+
+  while (request) {
+    lastResult = await saveDraftToServer(request.content);
+    request = queuedDraftSave;
+    queuedDraftSave = null;
+
+    if (request && request.content === lastPersistedContent.value) {
+      request = null;
+    }
+  }
+
+  return lastResult;
+};
+
+const queueDraftSave = async (
+  content: string,
+  source: DraftSaveSource,
+): Promise<Entry | null> => {
+  const trimmedContent = content.trim();
+
+  if (!trimmedContent || isEntryLocked.value) {
+    return null;
+  }
+
+  if (content === lastPersistedContent.value) {
+    draftSaveError.value = null;
+    return null;
+  }
+
+  const request = { content, source } satisfies DraftSaveRequest;
+
+  if (activeDraftSavePromise) {
+    queuedDraftSave = request;
+    return activeDraftSavePromise;
+  }
+
+  activeDraftSavePromise = drainDraftSaveQueue(request).finally(() => {
+    activeDraftSavePromise = null;
+  });
+
+  return activeDraftSavePromise;
 };
 
 const loadEntries = async (page = currentPage.value) => {
@@ -297,9 +456,25 @@ const loadEntries = async (page = currentPage.value) => {
       const todayKey = getTodayKeyInTimeZone(userTimezone.value);
       hasCompletedTodayEntryFromPageOne.value = data.entries.some(
         (entry) =>
-          getDayKeyInTimeZone(new Date(entry.created_at), userTimezone.value) ===
-          todayKey,
+          getDayKeyInTimeZone(
+            new Date(entry.created_at),
+            userTimezone.value,
+          ) === todayKey,
       );
+
+      if (
+        shouldResumeLatestDraft.value &&
+        !editingEntryId.value &&
+        !journalContent.value.trim()
+      ) {
+        const latestDraft = data.entries.find((entry) => !entry.review);
+
+        if (latestDraft) {
+          loadEntry(latestDraft);
+        }
+
+        shouldResumeLatestDraft.value = false;
+      }
     }
   } catch (error) {
     console.error("Failed to load entries:", error);
@@ -342,6 +517,10 @@ const loadCalendarDates = async (year: number, month: number) => {
 };
 
 const loadEntry = (entry: Entry) => {
+  clearAutosaveTimer();
+  draftSaveError.value = null;
+  lastPersistedContent.value = entry.content;
+  lastDraftSavedAt.value = entry.updated_at;
   journalContent.value = entry.content;
   lastSubmittedText.value = entry.content;
   clearReview();
@@ -361,6 +540,11 @@ const loadEntry = (entry: Entry) => {
 };
 
 const cancelEdit = () => {
+  clearAutosaveTimer();
+  queuedDraftSave = null;
+  draftSaveError.value = null;
+  lastPersistedContent.value = "";
+  lastDraftSavedAt.value = null;
   journalContent.value = "";
   editingEntryId.value = null;
   isEntryLocked.value = false;
@@ -368,71 +552,62 @@ const cancelEdit = () => {
   showReview.value = false;
 };
 
+const handleSave = async (content: string) => {
+  clearAutosaveTimer();
+  queuedDraftSave = null;
+  await activeDraftSavePromise;
+  await queueDraftSave(content, "manual");
+};
+
 const handleSubmit = async (content: string, entryId?: string) => {
+  clearAutosaveTimer();
+  queuedDraftSave = null;
+  await activeDraftSavePromise;
+
   isSubmitting.value = true;
   showReview.value = false;
   clearReview();
   lastSubmittedText.value = content;
-  let savedEntryId: string | undefined;
+  let savedEntryId: string | undefined = entryId ?? undefined;
 
   try {
-    if (entryId) {
-      const updatedEntry = await useAuthenticatedFetch<Entry>(
-        `/api/entries/${entryId}`,
-        {
-          method: "PUT",
-          body: { content },
-        },
-      );
-      savedEntryId = updatedEntry.id;
-    } else {
-      const createdEntry = await useAuthenticatedFetch<Entry>("/api/entries", {
-        method: "POST",
-        body: { content },
-      });
-      savedEntryId = createdEntry.id;
+    const savedEntry = await queueDraftSave(content, "manual");
+
+    if (!savedEntryId) {
+      savedEntryId = savedEntry?.id;
     }
 
-    await loadEntries(1);
-    await loadCalendarDates(
-      calendarMonth.value.year,
-      calendarMonth.value.month,
-    );
-    hasSubmittedEntry.value = true;
-    journalContent.value = "";
-    editingEntryId.value = null;
-    isEntryLocked.value = false;
-    showReview.value = true;
-  } catch (error) {
-    console.error("Failed to save entry:", error);
-  } finally {
-    isSubmitting.value = false;
-  }
+    if (!savedEntryId) {
+      return;
+    }
 
-  if (!savedEntryId) {
-    return;
-  }
+    const reviewResult = await requestReview(content, {
+      learnerPhase: getLearnerPhaseForReview(),
+    });
 
-  const reviewResult = await requestReview(content, {
-    learnerPhase: getLearnerPhaseForReview(),
-  });
+    if (!reviewResult) {
+      showReview.value = true;
+      return;
+    }
 
-  if (!reviewResult) {
-    return;
-  }
-
-  try {
     await useAuthenticatedFetch(`/api/entries/${savedEntryId}`, {
       method: "PUT",
       body: { review: reviewResult },
     });
-    await loadEntries(currentPage.value);
-    await loadCalendarDates(
-      calendarMonth.value.year,
-      calendarMonth.value.month,
-    );
+    await refreshEntriesAndCalendar();
+    clearAutosaveTimer();
+    draftSaveError.value = null;
+    lastPersistedContent.value = "";
+    lastDraftSavedAt.value = null;
+    journalContent.value = "";
+    editingEntryId.value = null;
+    isEntryLocked.value = false;
+    hasSubmittedEntry.value = true;
+    showReview.value = true;
   } catch (error) {
-    console.error("Failed to persist review:", error);
+    console.error("Failed to submit entry for review:", error);
+  } finally {
+    isSubmitting.value = false;
   }
 };
 
@@ -485,7 +660,30 @@ watch(userTimezone, (timezone) => {
   distractionFreeDismissed.value = false;
 });
 
+watch(journalContent, (value) => {
+  clearAutosaveTimer();
+
+  if (isEntryLocked.value || isSubmitting.value) {
+    return;
+  }
+
+  if (!value.trim() || value === lastPersistedContent.value) {
+    if (!value.trim()) {
+      draftSaveError.value = null;
+    }
+    return;
+  }
+
+  autosaveTimer = setTimeout(() => {
+    void queueDraftSave(value, "auto");
+  }, AUTOSAVE_DELAY_MS);
+});
+
 onMounted(() => {
-  loadEntries(1);
+  void loadEntries(1);
+});
+
+onBeforeUnmount(() => {
+  clearAutosaveTimer();
 });
 </script>

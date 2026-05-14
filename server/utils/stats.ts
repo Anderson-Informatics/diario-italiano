@@ -181,9 +181,11 @@ function computeImprovementRate(reviewedEntries: ReviewedEntryContext[]): number
   let sumX2 = 0
 
   for (let i = 0; i < n; i++) {
+    const rate = rates[i] ?? 0
+
     sumX += i
-    sumY += rates[i]
-    sumXY += i * rates[i]
+    sumY += rate
+    sumXY += i * rate
     sumX2 += i * i
   }
 

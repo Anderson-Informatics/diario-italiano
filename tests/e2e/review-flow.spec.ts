@@ -208,6 +208,10 @@ async function registerReviewFlowRoutes(page: Page) {
       body: JSON.stringify({ message: 'Unsupported entries route in test mock' })
     })
   })
+
+  return {
+    entries
+  }
 }
 
 const MOCK_REVIEW = {
@@ -328,4 +332,38 @@ test('user sees review error state when AI service fails', async ({ page }) => {
   await entryCard.click()
 
   await expect(page.getByText('AI review service is unavailable')).not.toBeVisible()
+})
+
+test('user autosaves a draft and resumes it after reloading', async ({ page }) => {
+  const routeState = await registerReviewFlowRoutes(page)
+
+  const auth = createAuthPayload('draft-autosave')
+  await page.addInitScript((payload) => {
+    window.localStorage.setItem('italian-journal-auth', JSON.stringify(payload))
+  }, auth)
+
+  await page.goto('/dashboard')
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await page.waitForLoadState('networkidle')
+
+  const editor = page.locator('textarea').first()
+  const draftText = 'Sto scrivendo una bozza per finirla piu tardi.'
+
+  await expect(editor).toBeVisible()
+  await editor.fill(draftText)
+
+  await expect.poll(() => routeState.entries.length, {
+    timeout: 10000
+  }).toBe(1)
+  await expect.poll(() => routeState.entries[0]?.content, {
+    timeout: 10000
+  }).toBe(draftText)
+
+  await page.reload()
+  await page.waitForLoadState('networkidle')
+
+  const resumedEditor = page.locator('textarea').first()
+  await expect(resumedEditor).toHaveValue(draftText)
+  await expect(page.getByText('Draft saved at')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save Draft' })).toBeVisible()
 })

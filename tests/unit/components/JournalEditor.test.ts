@@ -19,9 +19,12 @@ function getEntryTitle(entryId: string | null | undefined): string {
 /**
  * Test the button text logic from JournalEditor
  */
-function getButtonText(loading: boolean, entryId?: string | null): string {
-  if (loading) return 'Saving...'
-  return entryId ? 'Update Entry' : 'Submit for Review'
+function getSaveButtonText(loading: boolean): string {
+  return loading ? 'Saving...' : 'Save Draft'
+}
+
+function getSubmitButtonText(loading: boolean): string {
+  return loading ? 'Submitting...' : 'Submit for Review'
 }
 
 describe('JournalEditor Logic', () => {
@@ -55,18 +58,20 @@ describe('JournalEditor Logic', () => {
   })
 
   describe('Button Text Logic', () => {
-    it('should show "Saving..." when loading', () => {
-      expect(getButtonText(true)).toBe('Saving...')
-      expect(getButtonText(true, '123')).toBe('Saving...')
+    it('should show "Saving..." on the draft save button when loading', () => {
+      expect(getSaveButtonText(true)).toBe('Saving...')
     })
 
-    it('should show "Update Entry" when not loading and has entryId', () => {
-      expect(getButtonText(false, '123')).toBe('Update Entry')
+    it('should show "Save Draft" on the draft save button when idle', () => {
+      expect(getSaveButtonText(false)).toBe('Save Draft')
     })
 
-    it('should show "Submit for Review" when not loading and no entryId', () => {
-      expect(getButtonText(false, null)).toBe('Submit for Review')
-      expect(getButtonText(false, undefined)).toBe('Submit for Review')
+    it('should show "Submitting..." on the submit button when loading', () => {
+      expect(getSubmitButtonText(true)).toBe('Submitting...')
+    })
+
+    it('should show "Submit for Review" on the submit button when idle', () => {
+      expect(getSubmitButtonText(false)).toBe('Submit for Review')
     })
   })
 
