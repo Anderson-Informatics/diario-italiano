@@ -2,7 +2,6 @@
   <div
     class="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50"
   >
-    <!-- Navigation -->
     <nav class="bg-white/80 backdrop-blur-sm border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
@@ -20,55 +19,34 @@
       </div>
     </nav>
 
-    <!-- Main Content -->
     <main
       class="flex-1 flex items-start justify-center pt-16 px-4 sm:px-6 lg:px-8"
     >
       <div class="max-w-md w-full space-y-6">
         <div>
-          <h2 class="text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
+          <h1 class="text-center text-3xl font-extrabold text-gray-900">
+            Set a new password
+          </h1>
           <p class="mt-2 text-center text-sm text-gray-600">
-            Or
-            <NuxtLink
-              to="/register"
-              class="font-medium text-blue-600 hover:text-blue-500"
-            >
-              create a new account
-            </NuxtLink>
+            Choose a new password for your account.
           </p>
         </div>
 
-        <form class="space-y-6" @submit.prevent="handleLogin">
-          <div class="space-y-4">
-            <div>
-              <label
-                for="usernameOrEmail"
-                class="block text-sm font-medium text-gray-700"
-                >Username or Email</label
-              >
-              <input
-                id="usernameOrEmail"
-                v-model="form.usernameOrEmail"
-                type="text"
-                required
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                :class="{ 'border-red-500': errors.usernameOrEmail }"
-              />
-              <p
-                v-if="errors.usernameOrEmail"
-                class="mt-1 text-sm text-red-600"
-              >
-                {{ errors.usernameOrEmail }}
-              </p>
-            </div>
+        <div
+          v-if="!token"
+          class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          Reset token is missing. Request a new link from the forgot password
+          page.
+        </div>
 
+        <form v-else class="space-y-6" @submit.prevent="handleResetPassword">
+          <div class="space-y-4">
             <div>
               <label
                 for="password"
                 class="block text-sm font-medium text-gray-700"
-                >Password</label
+                >New password</label
               >
               <input
                 id="password"
@@ -81,14 +59,28 @@
               <p v-if="errors.password" class="mt-1 text-sm text-red-600">
                 {{ errors.password }}
               </p>
-              <div class="mt-2 text-right">
-                <NuxtLink
-                  to="/forgot-password"
-                  class="text-sm font-medium text-blue-600 hover:text-blue-500"
-                >
-                  Forgot password?
-                </NuxtLink>
-              </div>
+            </div>
+
+            <div>
+              <label
+                for="confirmPassword"
+                class="block text-sm font-medium text-gray-700"
+                >Confirm new password</label
+              >
+              <input
+                id="confirmPassword"
+                v-model="form.confirmPassword"
+                type="password"
+                required
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                :class="{ 'border-red-500': errors.confirmPassword }"
+              />
+              <p
+                v-if="errors.confirmPassword"
+                class="mt-1 text-sm text-red-600"
+              >
+                {{ errors.confirmPassword }}
+              </p>
             </div>
           </div>
 
@@ -96,19 +88,34 @@
             {{ serverError }}
           </div>
 
+          <div
+            v-if="successMessage"
+            class="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800"
+          >
+            {{ successMessage }}
+          </div>
+
           <button
             type="submit"
             :disabled="isLoading"
             class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span v-if="isLoading">Signing in...</span>
-            <span v-else>Sign in</span>
+            <span v-if="isLoading">Updating password...</span>
+            <span v-else>Reset password</span>
           </button>
         </form>
+
+        <p class="text-center text-sm text-gray-600">
+          <NuxtLink
+            to="/login"
+            class="font-medium text-blue-600 hover:text-blue-500"
+          >
+            Back to sign in
+          </NuxtLink>
+        </p>
       </div>
     </main>
 
-    <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 py-8">
       <div
         class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500"
@@ -122,69 +129,82 @@
 </template>
 
 <script setup lang="ts">
-import { useAuthStore } from "~/stores/auth";
-
 definePageMeta({
   layout: "landing",
 });
 
+const route = useRoute();
+const token = computed(() => String(route.query.token ?? "").trim());
+
 const form = reactive({
-  usernameOrEmail: "",
   password: "",
+  confirmPassword: "",
 });
 
 const errors = reactive({
-  usernameOrEmail: "",
   password: "",
+  confirmPassword: "",
 });
 
 const isLoading = ref(false);
 const serverError = ref("");
-
-const authStore = useAuthStore();
+const successMessage = ref("");
 
 const validateForm = () => {
-  let isValid = true;
-
-  // Reset errors
-  errors.usernameOrEmail = "";
   errors.password = "";
-
-  if (!form.usernameOrEmail) {
-    errors.usernameOrEmail = "Username or email is required";
-    isValid = false;
-  }
+  errors.confirmPassword = "";
 
   if (!form.password) {
     errors.password = "Password is required";
-    isValid = false;
+    return false;
   }
 
-  return isValid;
+  if (form.password.length < 6) {
+    errors.password = "Password must be at least 6 characters";
+    return false;
+  }
+
+  if (form.password !== form.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match";
+    return false;
+  }
+
+  return true;
 };
 
-const handleLogin = async () => {
-  if (!validateForm()) return;
+const handleResetPassword = async () => {
+  if (!validateForm()) {
+    return;
+  }
+
+  if (!token.value) {
+    serverError.value = "Reset token is missing. Request a new reset link.";
+    return;
+  }
 
   isLoading.value = true;
   serverError.value = "";
+  successMessage.value = "";
 
   try {
-    const response = await $fetch<{
-      token: string;
-      user: { id: string; username: string; email: string; timezone: string };
-    }>("/api/auth/login", {
-      method: "POST",
-      body: {
-        usernameOrEmail: form.usernameOrEmail,
-        password: form.password,
+    const response = await $fetch<{ message: string }>(
+      "/api/auth/reset-password",
+      {
+        method: "POST",
+        body: {
+          token: token.value,
+          password: form.password,
+        },
       },
-    });
+    );
 
-    authStore.setUser(response.user, response.token);
-    navigateTo("/dashboard");
+    successMessage.value = response.message;
+    form.password = "";
+    form.confirmPassword = "";
+
+    await navigateTo("/login");
   } catch (error: any) {
-    serverError.value = error.data?.message || "Login failed";
+    serverError.value = error.data?.message || "Unable to reset password";
   } finally {
     isLoading.value = false;
   }

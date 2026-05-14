@@ -14,6 +14,10 @@ MONGO_URI=mongodb://localhost:27017/italian_journal
 JWT_SECRET=replace-with-a-strong-secret
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_MODEL=gpt-4o-mini
+APP_BASE_URL=http://localhost:3000
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_DOMAIN=mg.your-domain.com
+MAILGUN_FROM=Diario Italiano <no-reply@your-domain.com>
 EOF
 
 pnpm dev
@@ -51,6 +55,10 @@ MONGO_URI=mongodb://localhost:27017/italian_journal
 JWT_SECRET=replace-with-a-strong-secret
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_MODEL=gpt-4o-mini
+APP_BASE_URL=http://localhost:3000
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_DOMAIN=mg.your-domain.com
+MAILGUN_FROM=Diario Italiano <no-reply@your-domain.com>
 ```
 
 3. Start the development server:

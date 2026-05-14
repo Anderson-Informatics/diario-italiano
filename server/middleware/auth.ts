@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken'
 import { User } from '../models/User'
 
 // Public API routes that don't require authentication
-const PUBLIC_API_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/auth/verify']
+const PUBLIC_API_ROUTES = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/verify',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password'
+]
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)

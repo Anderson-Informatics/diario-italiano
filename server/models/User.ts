@@ -17,6 +17,8 @@ export interface IUser extends Document {
   username: string
   email: string
   password: string
+  passwordResetToken?: string
+  passwordResetExpiresAt?: Date
   timezone: string
   useTargetReviewPhase: boolean
   targetReviewPhase: WritingReviewPhase
@@ -44,6 +46,8 @@ const UserSchema = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    passwordResetToken: { type: String },
+    passwordResetExpiresAt: { type: Date },
     timezone: {
       type: String,
       default: DEFAULT_TIMEZONE,

@@ -10,6 +10,10 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     jwtSecret: process.env.JWT_SECRET || 'default-secret-change-in-production',
+    appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+    mailgunApiKey: process.env.MAILGUN_API_KEY || '',
+    mailgunDomain: process.env.MAILGUN_DOMAIN || '',
+    mailgunFrom: process.env.MAILGUN_FROM || '',
     mongodbUri:
       process.env.MONGO_URI ||
       (process.env.NODE_ENV === 'production' ? '' : 'mongodb://localhost:27017/italian_journal'),

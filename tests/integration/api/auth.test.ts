@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'
 
 // Import models - need to ensure mongoose is connected first
 import { User } from '../../../server/models/User'
+import { createPasswordResetToken, hashPasswordResetToken } from '../../../server/utils/passwordReset'
 
 let mongoServer: MongoMemoryServer
 
@@ -138,6 +139,40 @@ describe('Auth Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       
       expect(() => jwt.verify(token, secret)).toThrow('jwt expired')
+    })
+  })
+
+  describe('Password Reset Flow', () => {
+    it('resets password when token hash and expiration are valid', async () => {
+      const user = await User.create({
+        username: 'resetuser',
+        email: 'reset@example.com',
+        password: 'oldpassword123'
+      })
+
+      const { rawToken, expiresAt } = createPasswordResetToken()
+      user.passwordResetToken = hashPasswordResetToken(rawToken)
+      user.passwordResetExpiresAt = expiresAt
+      await user.save()
+
+      const found = await User.findOne({
+        passwordResetToken: hashPasswordResetToken(rawToken),
+        passwordResetExpiresAt: { $gt: new Date() }
+      })
+
+      expect(found).toBeTruthy()
+
+      found!.password = 'newpassword123'
+      found!.passwordResetToken = undefined
+      found!.passwordResetExpiresAt = undefined
+      await found!.save()
+
+      const refreshed = await User.findById(user._id)
+      expect(refreshed).toBeTruthy()
+      expect(await refreshed!.comparePassword('newpassword123')).toBe(true)
+      expect(await refreshed!.comparePassword('oldpassword123')).toBe(false)
+      expect(refreshed!.passwordResetToken).toBeUndefined()
+      expect(refreshed!.passwordResetExpiresAt).toBeUndefined()
     })
   })
 })
